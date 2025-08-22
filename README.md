@@ -8,41 +8,24 @@
 
 ### Core Concepts
 
-**Cohort** - The complete set of all registered users in a friend group or community. These are all potential participants in any gathering, whether currently online or offline.
+**Community** - The complete set of all registered users in a friend group or community. These are all potential participants in any gathering, whether currently online or offline.
 
-**Members** - Individual users within a cohort. Each member has an identity (name, email) and various states throughout the coordination process.
+**Members** - Individual users within a community. Each member has an identity (name, email) and various states throughout the coordination process.
 
-**Recipients** - The subset of the cohort that receives a ping for a specific gathering. This could be everyone currently online, a curated list, or based on preferences.
+**Invitees** - The subset of the community invited for a specific gathering. This could be everyone currently online, a curated list, or based on preferences. Invitees could be offline and miss the invite.
 
-**Respondents** - Recipients who have provided any response during the Gathering phase (either interested or unavailable). Those who haven't responded are considered "pending."
-
-**Participants** - Members who are actively participating in the current phase of coordination:
-
-- In Gathering: those marked as "interested"
-- In When: those negotiating time
-- In Where: those voting on location
-- In RSVP: those confirming attendance
+**Respondents** - Invitees who have responded during the Invite phase (either interested or unavailable). Those who haven't responded are considered "pending" until the Invite phase time period ends. Then they are marked as unavailable.
 
 **Attendees** - The final set of members who have confirmed their attendance through the RSVP phase.
-
-### The Winnowing Process
-
-Each phase acts as a filter, progressively narrowing down from the full cohort to actual attendees:
-
-1. **Cohort** → (filter by availability/online) → **Recipients** (Pinging phase)
-2. **Recipients** → (filter by interest) → **Participants** (Gathering phase)
-3. **Participants** → (filter by time availability) → **Available** (When phase)
-4. **Available** → (filter by location preference) → **Voters** (Where phase)
-5. **Voters** → (filter by RSVP confirmation) → **Attendees** (RSVP phase)
 
 ### Member States by Phase
 
 Throughout the coordination flow, each member has specific states:
 
-- **Pinging**: `unreachable` | `reached`
-- **Gathering**: `pending` | `interested` | `unavailable`
-- **When**: `proposing` | `agreed` | `conflicted`
-- **Where**: `voted` | `abstained`
+- **Wanting:** `online` | `offline` | `dnd`
+- **Invitation**: `interested` | `pending` | `unavailable`
+- **When**: `proposing` | `agreed` | `conflicted` | `abstained`
+- **Where**: `proposing` | `agreed` | `conflicted` | `abstained`
 - **RSVP**: `confirmed` | `declined` | `tentative`
 
 ## Don't Panic
@@ -63,85 +46,62 @@ _Initial state - Like Arthur Dent wanting a proper cup of tea_
 
 Bob feels like grabbing a drink. He opens the app, which starts in the "Wanting" state. He checks a few boxes about what he's in the mood for (drinks, dinner, games) or selects "up for anything" - the pangalactic gargleblaster of social options.
 
-### Phase 2: Pinging
+### Phase 2: Invitation
 
-_Broadcasting across the sub-ether network_
+Bob sends out an invite to his community. Invitees can be chosen through various strategies:
 
-Bob sends out a ping to selected recipients from his cohort. Recipients can be chosen through various strategies:
 - **All Online** - Broadcast to everyone currently available
-- **Favorites** - Start with closest friends first  
-- **Group Size Matching** - If Bob wants a small gathering, ping fewer people
+- **Favorites** - Start with closest friends first
+- **Group Size Matching** - If Bob wants a small gathering, invite fewer people
 - **Cascading** - Start small, expand if insufficient responses
 
-The message travels faster than bad news through the cosmos, reaching all selected members who are online or have notifications enabled. The pinging can be immediate (everyone at once) or sequenced (waves of invites based on response rates).
+The invitation goes to all selected members who are online. The invitation can be immediate (everyone at once) or sequenced (waves of invites based on response rates).
 
-### Phase 3: Gathering
+Invitees have a period of time where they indicate interest. Invitees who don't respond within the timeout are marked as unavailable Those who express interest become Respondents for the next phases.
 
-_The Vogon Poetry Reading Period (but mercifully shorter)_
+### Phase 3: When
 
-Recipients enter a brief response period where they indicate interest. Think of it as the opposite of a Vogon poetry reading - people actually want to participate. Recipients who don't respond within the timeout are marked as unavailable (they're probably stuck in a bypass planning meeting). Those who express interest become participants for the next phases.
+The respondents see Bob's initial time preference and any new proposals as they come in. They can agree, propose alternatives or decline.
 
-### Phase 4: When (Temporal Coordination)
-
-_Easier than time travel, harder than missing the ground_
-
-The app presents participants with Bob's initial time preference. Participants can agree or propose alternatives. After another brief settling period, the system employs advanced strategies:
+Bob picks the winning time using one of the strategies.
 
 - "Closest to mine" - For the temporally selfish
 - "Most popular" - Democracy in action
 - "Must include Ford and Zaphod" - For when specific participants are essential
 
-Bob picks the winning time. The Infinite Improbability Drive has nothing on this level of coordination.
+### Phase 4: Where
 
-### Phase 5: Where (Location Triangulation)
-
-_Now with 42% less confusion_
-
-Bob gets first dibs on location selection, presented with intelligent strategies:
+Everyone starts deciding on location using intelligent strategies:
 
 - "Closest to me" - The Zaphod Beeblebrox approach
 - "Geographic center" - Fair and balanced, like a properly toweled hitchhiker
 - "Has Pan-Galactic Gargle Blasters" - Feature-based selection
 - "Not in Vogon territory" - Avoidance zones
 
-Bob can choose a strategy or open it up to the group. The strategies generate candidate locations, building a list of possibilities (top 10, because even Deep Thought needs limits).
+Available participants engage in ranked choice voting for the location list generated by each strategy used. The app handles tie-breaking automatically after. Voting ends when everyone has ranked the list or time runs out.
 
-### Phase 6: Voting
+### Phase 5: RSVP
 
-_More democratic than the Galactic Government_
+The final What/Where/When is sent as an invite to all respondents, even if they declined, in case they change their mind. Everyone (hoping) RSVPs.
 
-Available participants engage in ranked choice voting for the location list generated in Phase 5. The app handles tie-breaking automatically after a timeout. No need for Marvin's depressing input or a committee forming a committee to decide how to form a committee. This sophisticated voting system works better than any Galactic presidential election.
+Options include minimum attendance requirements - if fewer than N attendees confirm, the intent fails and everyone tries again another time.
 
-### Phase 7: RSVP
-
-_Final boarding call for the Heart of Gold_
-
-The final What/Where/When is sent as an invite to all voters. Options include minimum attendance requirements - if fewer than N attendees confirm, the intent fails and everyone tries again another time (probably when Earth hasn't been demolished for a hyperspace bypass).
-
-## Key Features (Mostly Harmless)
-
-- **Babel Fish Simplicity**: Universally understandable interface
-- **Deep Thought Strategies**: Intelligent decision algorithms for every phase
-- **Marvin-Proof**: Designed to work even when everything seems pointless
-- **Towel Compatible**: Always know where your towel is (location services)
-- **Bypass Resistant**: No committee can stop a plan once in motion
-
-## Future Enhancements (Currently at Marklar IV)
+## Future Enhancements
 
 - Late joining for fashionably late arrivals
 - Multi-group coordination (for when your different circles overlap like badly drawn Venn diagrams)
 - Historic pattern learning (the app remembers that Trillian always votes for wine bars)
 
-## Technical Guide for Hitchhikers
+## Technical Guide
 
-### Building the Probability Drive
+### Building
 
 ```bash
 cargo build           # Construct the Heart of Gold
 cargo build --release # With infinite improbability optimization
 ```
 
-### Testing the Sub-Ether Circuits
+### Testing
 
 ```bash
 cargo test                    # Test all components
@@ -149,14 +109,14 @@ cargo test test_name          # Test specific component
 cargo test -- --nocapture     # See the dolphins' goodbye messages
 ```
 
-### Formatting and Linting (Keeping it Zarquon Clean)
+### Formatting and Linting
 
 ```bash
 cargo fmt              # Format code to Galactic standards
 cargo clippy           # Let the ship's computer critique your code
 ```
 
-## Architecture (The Encyclopedia Galactica Entry)
+## Architecture
 
 The library implements a typestate pattern that would make even Slartibartfast proud. Each state transition is enforced at compile time - preventing impossible states more effectively than the laws of physics prevent faster-than-light travel (which, as we know, they don't really).
 
@@ -184,4 +144,3 @@ This project is about as free as a hitchhiker floating through space - which is 
 _Remember: The secret to spontaneous social success is knowing where your friends are, when they're free, and always carrying a towel._
 
 _So long, and thanks for all the pull requests._
-

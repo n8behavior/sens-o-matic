@@ -4,22 +4,25 @@ pub enum Activity {
     Lunch,
     Drinks,
     Dinner,
-    Active, // Walk, bowling, games, etc.
+    BoardGame,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mood {
     Quick,     // 30 mins max
     Chill,     // Low key, no pressure
-    Energetic, // High energy, ready to do things
+    Energetic, // TODO: need a better word to convey something public, busy place or just need to be around some people energy.
     Quiet,     // Intimate conversations, low noise
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupSize {
+    // TODO: I think the min/max should be associated data for clear rule matching, e.g.
+    // `OneOnOne((u8, u8))` or maybe something like `OneOnOne(GroupLimits); struct GroupLimits {min: Option<u8>, max: Option<u8>,}`
     OneOnOne, // 1-on-1 only
-    Small,    // 3-5 people
-    Large,    // 6+ people
+    Small,    // upto 6, at least 2, including organizer
+    Large,    // upto 12, at least 4, including organizer
+    Party,    // no max, at least 6, including organizer
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,3 +62,5 @@ impl Default for What {
         Self::new()
     }
 }
+
+// TODO: Does this module need tests? Feel like no, but, thoughts?

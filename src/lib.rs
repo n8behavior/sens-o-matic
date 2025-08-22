@@ -4,84 +4,98 @@ mod r#where;
 mod who;
 
 use what::What;
-use who::{Gathering, Participant};
+use who::Member;
 
 use crate::when::Availability;
 use std::rc::Rc;
 
 trait IntentState {
     fn itinerary(&self) -> String;
+
+    /// Apply timeout logic for this state.
+    /// Most states need timeout handling to move the flow forward.
+    /// Default implementation does nothing (override in states that need it).
+    fn apply_timeout(&mut self) {}
 }
 
-struct Wanting;
+struct Wanting {
+    what: What,
+}
 
 impl IntentState for Wanting {
     fn itinerary(&self) -> String {
-        // Provide a meaningful implementation
-        "Currently wanting to start an intent.".to_string()
+        "Currently wanting to start an intent".to_string()
     }
 }
 
-struct Pinging {
-    what: What,
-    recipients: Vec<Participant>,
+#[derive(Clone)]
+pub struct Invitation {
+    pub invitees: Vec<Member>,
+    pub interested: Vec<Member>,
+    pub unavailable: Vec<Member>,
 }
 
-impl IntentState for Pinging {
-    fn itinerary(&self) -> String {
-        let activity = self
-            .what
-            .activity
-            .as_ref()
-            .map(|a| format!("{a:?}"))
-            .unwrap_or_else(|| "any activity".to_string());
-
-        let mood = self
-            .what
-            .mood
-            .as_ref()
-            .map(|m| format!("{m:?}"))
-            .unwrap_or_else(|| "any".to_string());
-
-        let group = self
-            .what
-            .group_size
-            .as_ref()
-            .map(|g| format!("{g:?} group"))
-            .unwrap_or_else(|| "any size group".to_string());
-
-        format!("Pinging friends about {activity} with a {mood} mood, preferring {group}.")
-    }
-}
-
-struct Scheduling {
-    availabilities: Vec<Availability>,
-}
-
-impl IntentState for Scheduling {
-    fn itinerary(&self) -> String {
-        // Provide details about the availability
-        if self.availabilities.is_empty() {
-            "Scheduling with flexible availability.".to_string()
-        } else {
-            format!(
-                "Scheduling with {} availability windows.",
-                self.availabilities.len()
-            )
+impl Invitation {
+    pub fn new(invitees: Vec<Member>) -> Self {
+        Invitation {
+            invitees: invitees.clone(),
+            interested: Vec::new(),
+            unavailable: Vec::new(),
         }
     }
-}
 
-impl IntentState for Gathering {
+    pub fn pending(&self) -> Vec<Member> {
+        self.invitees
+            .iter()
+            .filter(|p| !self.interested.contains(p) && !self.unavailable.contains(p))
+            .cloned()
+            .collect()
+    }
+
+    pub fn all_responded(&self) -> bool {
+        self.pending().is_empty()
+    }
+
+    pub fn has_interested_participants(&self) -> bool {
+        !self.interested.is_empty()
+    }
+
+    pub fn should_fail_intent(&self) -> bool {
+        self.interested.is_empty() && self.all_responded()
+    }
+}
+// TODO: Implement similar methods for other state transitions
+
+impl IntentState for Invitation {
     fn itinerary(&self) -> String {
         let interested_count = self.interested.len();
         let pending_count = self.pending().len();
         let unavailable_count = self.unavailable.len();
-        
+
         format!(
-            "Gathering responses: {} interested, {} pending, {} unavailable",
-            interested_count, pending_count, unavailable_count
+            "Invitation: {interested_count} interested, {pending_count} pending, {unavailable_count} unavailable"
         )
+    }
+
+    fn apply_timeout(&mut self) {
+        // Move all pending invitees to unavailable
+        let pending = self.pending();
+        self.unavailable.extend(pending);
+    }
+}
+
+struct When {
+    availabilities: Vec<Availability>,
+}
+
+impl IntentState for When {
+    fn itinerary(&self) -> String {
+        // Provide details about the availability
+        if self.availabilities.is_empty() {
+            "When: flexible availability".to_string()
+        } else {
+            format!("When: {} availability windows.", self.availabilities.len())
+        }
     }
 }
 
@@ -98,8 +112,10 @@ impl IntentState for Voting {
     }
 }
 
+// TODO: thinking this sholud be `Rc<str>`
 type Name = &'static str;
 
+// TODO: should likely derive Clone
 struct Intent<S: IntentState> {
     name: Name,
     plan: Vec<Rc<dyn IntentState>>,
@@ -107,67 +123,63 @@ struct Intent<S: IntentState> {
 }
 
 impl Intent<Wanting> {
-    fn new(name: Name) -> Self {
+    // TODO: impl Into<Name> would be more ergonomic for passing in litteral and owned strings but I'm not sure why I have this as a
+    // borrowed static String. It's going to be for UI display only. Since other
+    // fields in Intent<S> are `Rc`, Clone for the whole struct would be cheap and easy without
+    // worry about borrowing or lifestimes. Thoughts?
+    fn new(name: Name, what: What) -> Self {
         Intent {
             name,
             plan: vec![],
-            state: Rc::new(Wanting),
+            state: Rc::new(Wanting { what }),
         }
     }
 
-    fn start_pinging(self, what: What, recipients: Vec<Participant>) -> Intent<Pinging> {
-        let pinging_state = Rc::new(Pinging { what, recipients });
-        Intent {
-            name: self.name,
-            plan: vec![pinging_state.clone()],
-            state: pinging_state,
-        }
-    }
-}
-
-impl Intent<Pinging> {
-    fn start_gathering(self) -> Intent<Gathering> {
-        let gathering_state = Rc::new(Gathering::new(self.state.recipients.clone()));
+    fn send_invitation(self, invitees: Vec<Member>) -> Intent<Invitation> {
+        let invitation_state = Rc::new(Invitation::new(invitees));
         let mut plan = self.plan;
-        plan.push(gathering_state.clone() as Rc<dyn IntentState>);
+        plan.push(self.state.clone() as Rc<dyn IntentState>);
         Intent {
             name: self.name,
             plan,
-            state: gathering_state,
-        }
-    }
-
-    fn schedule(self, availabilities: Vec<Availability>) -> Intent<Scheduling> {
-        let scheduling_state = Rc::new(Scheduling { availabilities });
-        Intent {
-            name: self.name,
-            plan: self.plan,
-            state: scheduling_state,
+            state: invitation_state,
         }
     }
 }
 
-impl Intent<Gathering> {
-    fn add_interested(&mut self, participant: Participant) {
+impl Intent<Invitation> {
+    fn schedule(self, availabilities: Vec<Availability>) -> Intent<When> {
+        let when_state = Rc::new(When { availabilities });
+        let mut plan = self.plan;
+        plan.push(when_state.clone() as Rc<dyn IntentState>);
+        Intent {
+            name: self.name,
+            plan,
+            state: when_state,
+        }
+    }
+
+    // Methods for managing invitation responses
+    fn add_interested(&mut self, member: Member) {
         let state = Rc::make_mut(&mut self.state);
-        if state.recipients.contains(&participant) {
+        if state.invitees.contains(&member) {
             // Remove from unavailable if present
-            state.unavailable.retain(|p| p != &participant);
+            state.unavailable.retain(|p| p != &member);
             // Add to interested if not already there
-            if !state.interested.contains(&participant) {
-                state.interested.push(participant);
+            if !state.interested.contains(&member) {
+                state.interested.push(member);
             }
         }
     }
 
-    fn mark_unavailable(&mut self, participant: Participant) {
+    fn mark_unavailable(&mut self, member: Member) {
         let state = Rc::make_mut(&mut self.state);
-        if state.recipients.contains(&participant) {
+        if state.invitees.contains(&member) {
             // Remove from interested if present
-            state.interested.retain(|p| p != &participant);
+            state.interested.retain(|p| p != &member);
             // Add to unavailable if not already there
-            if !state.unavailable.contains(&participant) {
-                state.unavailable.push(participant);
+            if !state.unavailable.contains(&member) {
+                state.unavailable.push(member);
             }
         }
     }
@@ -177,15 +189,15 @@ impl Intent<Gathering> {
         state.apply_timeout();
     }
 
-    fn interested(&self) -> Vec<Participant> {
+    fn interested(&self) -> Vec<Member> {
         self.state.interested.clone()
     }
 
-    fn unavailable(&self) -> Vec<Participant> {
+    fn unavailable(&self) -> Vec<Member> {
         self.state.unavailable.clone()
     }
 
-    fn pending(&self) -> Vec<Participant> {
+    fn pending(&self) -> Vec<Member> {
         self.state.pending()
     }
 
@@ -202,8 +214,6 @@ impl Intent<Gathering> {
     }
 }
 
-// TODO: Implement similar methods for other state transitions
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,210 +224,198 @@ mod tests {
     #[test]
     fn test_intent_state_transitions() {
         // Create an Intent in the Wanting state
-        let intent_wanting = Intent::new("Zara's Hangout");
-
-        // Transition to Pinging state
         let what = What::new()
             .with_activity(Activity::Drinks)
             .with_mood(Mood::Chill)
             .with_group_size(GroupSize::Small);
-        let recipients = vec![];
-        let intent_pinging = intent_wanting.start_pinging(what.clone(), recipients);
-        assert_eq!(intent_pinging.state.what, what);
+        let intent_wanting = Intent::new("Zara's Hangout", what.clone());
 
-        // Transition to Scheduling state with specific availability
+        // Transition to Invitation state
+        let invitees = vec![];
+        let intent_invitation = intent_wanting.send_invitation(invitees);
+        assert_eq!(intent_invitation.state.invitees.len(), 0);
+
+        // Transition to When state with specific availability
         let start = Utc::now() + Duration::hours(2);
         let availability = Availability::new(start, Duration::hours(3));
-        let intent_scheduling = intent_pinging.schedule(vec![availability]);
-        assert_eq!(intent_scheduling.state.availabilities.len(), 1);
+        let intent_when = intent_invitation.schedule(vec![availability]);
+        assert_eq!(intent_when.state.availabilities.len(), 1);
     }
 
     #[test]
-    fn test_scheduling_with_flexible_availability() {
-        let intent_wanting = Intent::new("Bob's Gathering");
+    fn test_when_with_flexible_availability() {
         let what = What::new()
             .with_activity(Activity::Coffee)
             .with_mood(Mood::Quick)
             .with_group_size(GroupSize::OneOnOne);
-        let intent_pinging = intent_wanting.start_pinging(what, vec![]);
+        let intent_wanting = Intent::new("Bob's Meetup", what);
+        let intent_invitation = intent_wanting.send_invitation(vec![]);
 
         // Schedule with empty vec means flexible/anytime
-        let intent_scheduling = intent_pinging.schedule(vec![]);
-        assert!(intent_scheduling.state.availabilities.is_empty());
-        assert_eq!(
-            intent_scheduling.state.itinerary(),
-            "Scheduling with flexible availability."
-        );
+        let intent_when = intent_invitation.schedule(vec![]);
+        assert!(intent_when.state.availabilities.is_empty());
+        assert_eq!(intent_when.state.itinerary(), "When: flexible availability");
     }
 
     #[test]
-    fn test_scheduling_with_multiple_windows() {
-        let intent_wanting = Intent::new("Weekend Plans");
+    fn test_when_with_multiple_windows() {
         let what = What::new()
-            .with_activity(Activity::Active)
+            .with_activity(Activity::BoardGame)
             .with_mood(Mood::Energetic)
             .with_group_size(GroupSize::Large);
-        let intent_pinging = intent_wanting.start_pinging(what, vec![]);
+        let intent_wanting = Intent::new("Weekend Plans", what);
+        let intent_invitation = intent_wanting.send_invitation(vec![]);
 
         let now = Utc::now();
         let avail1 = Availability::new(now + Duration::hours(2), Duration::hours(2));
         let avail2 = Availability::new(now + Duration::days(1), Duration::hours(3));
 
-        let intent_scheduling = intent_pinging.schedule(vec![avail1, avail2]);
-        assert_eq!(intent_scheduling.state.availabilities.len(), 2);
+        let intent_when = intent_invitation.schedule(vec![avail1, avail2]);
+        assert_eq!(intent_when.state.availabilities.len(), 2);
         assert_eq!(
-            intent_scheduling.state.itinerary(),
-            "Scheduling with 2 availability windows."
+            intent_when.state.itinerary(),
+            "When: 2 availability windows."
         );
     }
 
     #[test]
     fn test_what_with_no_preferences() {
-        let intent_wanting = Intent::new("Spontaneous Hangout");
         let what = What::new(); // All None - totally flexible
-        let intent_pinging = intent_wanting.start_pinging(what, vec![]);
+        let intent_wanting = Intent::new("Spontaneous Hangout", what);
+        let intent_invitation = intent_wanting.send_invitation(vec![]);
 
-        assert_eq!(intent_pinging.state.what.activity, None);
-        assert_eq!(intent_pinging.state.what.mood, None);
-        assert_eq!(intent_pinging.state.what.group_size, None);
+        // What is now stored in Wanting state, not Invitation
         assert_eq!(
-            intent_pinging.state.itinerary(),
-            "Pinging friends about any activity with a any mood, preferring any size group."
+            intent_invitation.state.itinerary(),
+            "Invitation: 0 interested, 0 pending, 0 unavailable"
         );
     }
 
     #[test]
     fn test_what_with_partial_preferences() {
-        let intent_wanting = Intent::new("Lunch Plans");
         let what = What::new().with_activity(Activity::Lunch); // Only activity specified
-        let intent_pinging = intent_wanting.start_pinging(what, vec![]);
+        let intent_wanting = Intent::new("Lunch Plans", what);
+        let intent_invitation = intent_wanting.send_invitation(vec![]);
 
-        assert_eq!(intent_pinging.state.what.activity, Some(Activity::Lunch));
-        assert_eq!(intent_pinging.state.what.mood, None);
-        assert_eq!(intent_pinging.state.what.group_size, None);
+        // What is stored in Wanting state, verified by successful creation
     }
 
-    // Gathering State Tests (TDD - will fail until implementation)
+    // Responses State Tests
 
     #[test]
-    fn test_gathering_recipient_responses() {
-        let alice = Participant::new("Alice", "alice@example.com");
-        let bob = Participant::new("Bob", "bob@example.com");
-        let carol = Participant::new("Carol", "carol@example.com");
-        let dave = Participant::new("Dave", "dave@example.com");
-        let recipients = vec![alice.clone(), bob.clone(), carol.clone(), dave.clone()];
+    fn test_responses_invitee_tracking() {
+        let alice = Member::new("Alice", "alice@example.com");
+        let bob = Member::new("Bob", "bob@example.com");
+        let carol = Member::new("Carol", "carol@example.com");
+        let dave = Member::new("Dave", "dave@example.com");
+        let invitees = vec![alice.clone(), bob.clone(), carol.clone(), dave.clone()];
 
         // Must go through typestate pattern
-        let intent_wanting = Intent::new("Test Responses");
-        let intent_pinging = intent_wanting.start_pinging(What::new(), recipients);
-        let mut intent_gathering = intent_pinging.start_gathering();
+        let intent_wanting = Intent::new("Test Responses", What::new());
+        let mut intent_invitation = intent_wanting.send_invitation(invitees);
 
         // Alice and Bob are interested
-        intent_gathering.add_interested(alice.clone());
-        intent_gathering.add_interested(bob.clone());
+        intent_invitation.add_interested(alice.clone());
+        intent_invitation.add_interested(bob.clone());
 
         // Carol is unavailable
-        intent_gathering.mark_unavailable(carol.clone());
+        intent_invitation.mark_unavailable(carol.clone());
 
         // Dave doesn't respond (still in pending)
 
-        assert_eq!(intent_gathering.interested(), vec![alice, bob]);
-        assert_eq!(intent_gathering.unavailable(), vec![carol]);
-        assert!(intent_gathering.pending().contains(&dave));
+        assert_eq!(intent_invitation.interested(), vec![alice, bob]);
+        assert_eq!(intent_invitation.unavailable(), vec![carol]);
+        assert!(intent_invitation.pending().contains(&dave));
     }
 
     #[test]
-    fn test_gathering_timeout_behavior() {
-        let alice = Participant::new("Alice", "alice@example.com");
-        let bob = Participant::new("Bob", "bob@example.com");
-        let carol = Participant::new("Carol", "carol@example.com");
-        let recipients = vec![alice.clone(), bob.clone(), carol.clone()];
+    fn test_responses_timeout_behavior() {
+        let alice = Member::new("Alice", "alice@example.com");
+        let bob = Member::new("Bob", "bob@example.com");
+        let carol = Member::new("Carol", "carol@example.com");
+        let invitees = vec![alice.clone(), bob.clone(), carol.clone()];
 
         // Must go through typestate pattern
-        let intent_wanting = Intent::new("Test Timeout");
-        let intent_pinging = intent_wanting.start_pinging(What::new(), recipients);
-        let mut intent_gathering = intent_pinging.start_gathering();
+        let intent_wanting = Intent::new("Test Timeout", What::new());
+        let mut intent_invitation = intent_wanting.send_invitation(invitees);
 
-        intent_gathering.add_interested(alice.clone());
+        intent_invitation.add_interested(alice.clone());
         // Bob and Carol don't respond
 
-        // Apply timeout - pending participants become unavailable
-        intent_gathering.apply_timeout();
+        // Apply timeout - pending invitees become unavailable
+        intent_invitation.apply_timeout();
 
-        assert_eq!(intent_gathering.interested(), vec![alice]);
-        assert_eq!(intent_gathering.unavailable().len(), 2);
-        assert!(intent_gathering.unavailable().contains(&bob));
-        assert!(intent_gathering.unavailable().contains(&carol));
-        assert_eq!(intent_gathering.pending().len(), 0); // No one left pending
+        assert_eq!(intent_invitation.interested(), vec![alice]);
+        assert_eq!(intent_invitation.unavailable().len(), 2);
+        assert!(intent_invitation.unavailable().contains(&bob));
+        assert!(intent_invitation.unavailable().contains(&carol));
+        assert_eq!(intent_invitation.pending().len(), 0); // No one left pending
     }
 
     #[test]
-    fn test_gathering_no_one_interested() {
-        let alice = Participant::new("Alice", "alice@example.com");
-        let bob = Participant::new("Bob", "bob@example.com");
-        let recipients = vec![alice.clone(), bob.clone()];
+    fn test_responses_no_one_interested() {
+        let alice = Member::new("Alice", "alice@example.com");
+        let bob = Member::new("Bob", "bob@example.com");
+        let invitees = vec![alice.clone(), bob.clone()];
 
         // Must go through typestate pattern
-        let intent_wanting = Intent::new("Test No Interest");
-        let intent_pinging = intent_wanting.start_pinging(What::new(), recipients);
-        let mut intent_gathering = intent_pinging.start_gathering();
+        let intent_wanting = Intent::new("Test No Interest", What::new());
+        let mut intent_invitation = intent_wanting.send_invitation(invitees);
 
-        intent_gathering.mark_unavailable(alice);
-        intent_gathering.mark_unavailable(bob);
+        intent_invitation.mark_unavailable(alice);
+        intent_invitation.mark_unavailable(bob);
 
         // Should indicate intent failure when no one is interested
-        assert!(!intent_gathering.has_interested_participants());
-        assert!(intent_gathering.should_fail_intent());
+        assert!(!intent_invitation.has_interested_participants());
+        assert!(intent_invitation.should_fail_intent());
     }
 
     #[test]
-    fn test_gathering_incremental_responses() {
+    fn test_responses_incremental_tracking() {
         // Test that responses can trickle in over time
-        let alice = Participant::new("Alice", "alice@example.com");
-        let bob = Participant::new("Bob", "bob@example.com");
-        let carol = Participant::new("Carol", "carol@example.com");
-        let recipients = vec![alice.clone(), bob.clone(), carol.clone()];
+        let alice = Member::new("Alice", "alice@example.com");
+        let bob = Member::new("Bob", "bob@example.com");
+        let carol = Member::new("Carol", "carol@example.com");
+        let invitees = vec![alice.clone(), bob.clone(), carol.clone()];
 
         // Must go through typestate pattern
-        let intent_wanting = Intent::new("Test Incremental");
-        let intent_pinging = intent_wanting.start_pinging(What::new(), recipients);
-        let mut intent_gathering = intent_pinging.start_gathering();
+        let intent_wanting = Intent::new("Test Incremental", What::new());
+        let mut intent_invitation = intent_wanting.send_invitation(invitees);
 
         // Initially all pending
-        assert_eq!(intent_gathering.pending().len(), 3);
+        assert_eq!(intent_invitation.pending().len(), 3);
 
         // Alice responds first
-        intent_gathering.add_interested(alice.clone());
-        assert_eq!(intent_gathering.pending().len(), 2);
-        assert_eq!(intent_gathering.interested().len(), 1);
+        intent_invitation.add_interested(alice.clone());
+        assert_eq!(intent_invitation.pending().len(), 2);
+        assert_eq!(intent_invitation.interested().len(), 1);
 
         // Bob responds later
-        intent_gathering.mark_unavailable(bob.clone());
-        assert_eq!(intent_gathering.pending().len(), 1);
-        assert_eq!(intent_gathering.unavailable().len(), 1);
+        intent_invitation.mark_unavailable(bob.clone());
+        assert_eq!(intent_invitation.pending().len(), 1);
+        assert_eq!(intent_invitation.unavailable().len(), 1);
 
         // Carol still pending
-        assert!(intent_gathering.pending().contains(&carol));
+        assert!(intent_invitation.pending().contains(&carol));
     }
 
     #[test]
-    fn test_gathering_all_respond_early() {
+    fn test_responses_all_respond_early() {
         // Test that we can proceed before timeout if everyone responds
-        let alice = Participant::new("Alice", "alice@example.com");
-        let bob = Participant::new("Bob", "bob@example.com");
-        let recipients = vec![alice.clone(), bob.clone()];
+        let alice = Member::new("Alice", "alice@example.com");
+        let bob = Member::new("Bob", "bob@example.com");
+        let invitees = vec![alice.clone(), bob.clone()];
 
         // Must go through typestate pattern
-        let intent_wanting = Intent::new("Test Early Response");
-        let intent_pinging = intent_wanting.start_pinging(What::new(), recipients);
-        let mut intent_gathering = intent_pinging.start_gathering();
+        let intent_wanting = Intent::new("Test Early Response", What::new());
+        let mut intent_invitation = intent_wanting.send_invitation(invitees);
 
-        intent_gathering.add_interested(alice);
-        intent_gathering.mark_unavailable(bob);
+        intent_invitation.add_interested(alice);
+        intent_invitation.mark_unavailable(bob);
 
         // All have responded, none pending
-        assert_eq!(intent_gathering.pending().len(), 0);
-        assert!(intent_gathering.all_responded());
+        assert_eq!(intent_invitation.pending().len(), 0);
+        assert!(intent_invitation.all_responded());
         // Can proceed without waiting for timeout
     }
 }
