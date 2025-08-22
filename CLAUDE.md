@@ -38,7 +38,7 @@ This is a Rust library implementing a typestate pattern for modeling social plan
 ### Core Modules
 
 - **`what.rs`**: Defines the types of activities (`Activity` enum) and moods (`Mood` enum) for social planning
-- **`when.rs`**: Handles time and availability modeling with `Availability`, `AvailabilityWindow`, and `RecurringAvailability` types
+- **`when.rs`**: Simple availability modeling with a single `Availability` struct (start/end times). Empty Vec<Availability> = flexible
 - **`where.rs`**: Currently empty, intended for location modeling
 - **`who.rs`**: Currently empty, intended for participant modeling
 - **`lib.rs`**: Main library entry point implementing the typestate pattern for intent management
@@ -69,8 +69,9 @@ The `Intent` struct maintains a history of states in its `plan` field while trac
 
 Tests are located in `#[cfg(test)]` modules within each source file. The test suite covers:
 - State transitions in the typestate pattern
-- Time range and availability window creation
-- Recurring availability expansion
+- Availability window creation and validation
+- Overlapping availability detection
+- Flexible availability (empty Vec) handling
 - Activity and mood enums
 
 Run a single test with: `cargo test test_intent_state_transitions`
