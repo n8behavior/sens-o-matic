@@ -4,7 +4,48 @@
 >
 > This app solves the fourth phase: "Who's free for drinks after work?"
 
-## Don't Panic!
+## Vocabulary
+
+### Core Concepts
+
+**Cohort** - The complete set of all registered users in a friend group or community. These are all potential participants in any gathering, whether currently online or offline.
+
+**Members** - Individual users within a cohort. Each member has an identity (name, email) and various states throughout the coordination process.
+
+**Recipients** - The subset of the cohort that receives a ping for a specific gathering. This could be everyone currently online, a curated list, or based on preferences.
+
+**Respondents** - Recipients who have provided any response during the Gathering phase (either interested or unavailable). Those who haven't responded are considered "pending."
+
+**Participants** - Members who are actively participating in the current phase of coordination:
+
+- In Gathering: those marked as "interested"
+- In When: those negotiating time
+- In Where: those voting on location
+- In RSVP: those confirming attendance
+
+**Attendees** - The final set of members who have confirmed their attendance through the RSVP phase.
+
+### The Winnowing Process
+
+Each phase acts as a filter, progressively narrowing down from the full cohort to actual attendees:
+
+1. **Cohort** → (filter by availability/online) → **Recipients** (Pinging phase)
+2. **Recipients** → (filter by interest) → **Participants** (Gathering phase)
+3. **Participants** → (filter by time availability) → **Available** (When phase)
+4. **Available** → (filter by location preference) → **Voters** (Where phase)
+5. **Voters** → (filter by RSVP confirmation) → **Attendees** (RSVP phase)
+
+### Member States by Phase
+
+Throughout the coordination flow, each member has specific states:
+
+- **Pinging**: `unreachable` | `reached`
+- **Gathering**: `pending` | `interested` | `unavailable`
+- **When**: `proposing` | `agreed` | `conflicted`
+- **Where**: `voted` | `abstained`
+- **RSVP**: `confirmed` | `declined` | `tentative`
+
+## Don't Panic
 
 Planning social gatherings with friends shouldn't be harder than calculating the probability of being rescued from deep space (which, for the record, is 2^276,709 to 1 against). Yet somehow, the simple act of coordinating "let's grab drinks" often involves more back-and-forth messages than a Vogon bureaucracy permit application.
 
@@ -17,34 +58,47 @@ The entire process requires just a few button clicks. No committees. No endless 
 ## The Journey Through Hyperspace (How It Works)
 
 ### Phase 1: Wanting
-*Initial state - Like Arthur Dent wanting a proper cup of tea*
+
+_Initial state - Like Arthur Dent wanting a proper cup of tea_
 
 Bob feels like grabbing a drink. He opens the app, which starts in the "Wanting" state. He checks a few boxes about what he's in the mood for (drinks, dinner, games) or selects "up for anything" - the pangalactic gargleblaster of social options.
 
 ### Phase 2: Pinging
-*Broadcasting across the sub-ether network*
 
-Bob sends out a ping to his friend group. The message travels faster than bad news through the cosmos, reaching all his friends who have the app installed.
+_Broadcasting across the sub-ether network_
 
-### Phase 3: Quiescing
-*The Vogon Poetry Reading Period (but mercifully shorter)*
+Bob sends out a ping to selected recipients from his cohort. Recipients can be chosen through various strategies:
+- **All Online** - Broadcast to everyone currently available
+- **Favorites** - Start with closest friends first  
+- **Group Size Matching** - If Bob wants a small gathering, ping fewer people
+- **Cascading** - Start small, expand if insufficient responses
 
-There's a brief settling period where interested folks can respond. Think of it as the opposite of a Vogon poetry reading - people actually want to participate. Anyone who doesn't respond is marked as unavailable (they're probably stuck in a bypass planning meeting).
+The message travels faster than bad news through the cosmos, reaching all selected members who are online or have notifications enabled. The pinging can be immediate (everyone at once) or sequenced (waves of invites based on response rates).
+
+### Phase 3: Gathering
+
+_The Vogon Poetry Reading Period (but mercifully shorter)_
+
+Recipients enter a brief response period where they indicate interest. Think of it as the opposite of a Vogon poetry reading - people actually want to participate. Recipients who don't respond within the timeout are marked as unavailable (they're probably stuck in a bypass planning meeting). Those who express interest become participants for the next phases.
 
 ### Phase 4: When (Temporal Coordination)
-*Easier than time travel, harder than missing the ground*
 
-The app presents everyone with Bob's initial time preference. Friends can agree or propose alternatives. After another brief settling period, the system employs advanced strategies:
+_Easier than time travel, harder than missing the ground_
+
+The app presents participants with Bob's initial time preference. Participants can agree or propose alternatives. After another brief settling period, the system employs advanced strategies:
+
 - "Closest to mine" - For the temporally selfish
 - "Most popular" - Democracy in action
-- "Must include Ford and Zaphod" - For when specific froods are essential
+- "Must include Ford and Zaphod" - For when specific participants are essential
 
 Bob picks the winning time. The Infinite Improbability Drive has nothing on this level of coordination.
 
 ### Phase 5: Where (Location Triangulation)
-*Now with 42% less confusion*
+
+_Now with 42% less confusion_
 
 Bob gets first dibs on location selection, presented with intelligent strategies:
+
 - "Closest to me" - The Zaphod Beeblebrox approach
 - "Geographic center" - Fair and balanced, like a properly toweled hitchhiker
 - "Has Pan-Galactic Gargle Blasters" - Feature-based selection
@@ -53,14 +107,16 @@ Bob gets first dibs on location selection, presented with intelligent strategies
 Bob can choose a strategy or open it up to the group. The strategies generate candidate locations, building a list of possibilities (top 10, because even Deep Thought needs limits).
 
 ### Phase 6: Voting
-*More democratic than the Galactic Government*
 
-Everyone participates in ranked choice voting for the location list generated in Phase 5. The app handles tie-breaking automatically after a timeout. No need for Marvin's depressing input or a committee forming a committee to decide how to form a committee. This sophisticated voting system works better than any Galactic presidential election.
+_More democratic than the Galactic Government_
+
+Available participants engage in ranked choice voting for the location list generated in Phase 5. The app handles tie-breaking automatically after a timeout. No need for Marvin's depressing input or a committee forming a committee to decide how to form a committee. This sophisticated voting system works better than any Galactic presidential election.
 
 ### Phase 7: RSVP
-*Final boarding call for the Heart of Gold*
 
-The final What/Where/When is sent as an invite. Options include minimum attendance requirements - if fewer than N people RSVP, the intent fails and everyone tries again another time (probably when Earth hasn't been demolished for a hyperspace bypass).
+_Final boarding call for the Heart of Gold_
+
+The final What/Where/When is sent as an invite to all voters. Options include minimum attendance requirements - if fewer than N attendees confirm, the intent fails and everyone tries again another time (probably when Earth hasn't been demolished for a hyperspace bypass).
 
 ## Key Features (Mostly Harmless)
 
@@ -125,6 +181,7 @@ This project is about as free as a hitchhiker floating through space - which is 
 
 ---
 
-*Remember: The secret to spontaneous social success is knowing where your friends are, when they're free, and always carrying a towel.*
+_Remember: The secret to spontaneous social success is knowing where your friends are, when they're free, and always carrying a towel._
 
-*So long, and thanks for all the pull requests.*
+_So long, and thanks for all the pull requests._
+
