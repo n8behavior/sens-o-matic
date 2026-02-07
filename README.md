@@ -1,146 +1,58 @@
 # Sens-O-Matic
 
-> "The history of every major Galactic civilization tends to pass through three distinct and recognizable phases, those of Survival, Inquiry, and Sophistication, otherwise known as the How, Why, and Where phases. For instance, the first phase is characterized by the question 'How can we eat?', the second by the question 'Why do we eat?', and the third by the question 'Where shall we have lunch?'"
->
-> This app solves the fourth phase: "Who's free for drinks after work?"
+A mobile app for coordinating spontaneous meetups with friends.
 
-## Vocabulary
+## The Problem
 
-### Core Concepts
+Getting friends together for drinks shouldn't require a group chat with 47 messages. The real friction isn't finding who's available - it's finding the overlap of *when* people can be there and *where* works for everyone.
 
-**Community** - The complete set of all registered users in a friend group or community. These are all potential participants in any gathering, whether currently online or offline.
+- "I'm free but not if it's downtown"
+- "I can make it but only after 5:30"
+- "Is anyone still going to be there at 7?"
 
-**Members** - Individual users within a community. Each member has an identity (name, email) and various states throughout the coordination process.
+Sens-O-Matic helps groups find that overlap quickly.
 
-**Invitees** - The subset of the community invited for a specific gathering. This could be everyone currently online, a curated list, or based on preferences. Invitees could be offline and miss the invite.
+## How It Works
 
-**Respondents** - Invitees who have responded during the Invite phase (either interested or unavailable). Those who haven't responded are considered "pending" until the Invite phase time period ends. Then they are marked as unavailable.
+### 1. Ping
 
-**Attendees** - The final set of members who have confirmed their attendance through the RSVP phase.
+Someone asks: "Who's up for drinks today?"
 
-### Member States by Phase
+This goes out to your group. No need to pick a time or place yet.
 
-Throughout the coordination flow, each member has specific states:
+### 2. Gather
 
-- **Wanting:** `online` | `offline` | `dnd`
-- **Invitation**: `interested` | `pending` | `unavailable`
-- **When**: `proposing` | `agreed` | `conflicted` | `abstained`
-- **Where**: `proposing` | `agreed` | `conflicted` | `abstained`
-- **RSVP**: `confirmed` | `declined` | `tentative`
+People respond with:
+- **Yes or No** - Commit or don't. No maybes.
+- **When** - Their availability window (e.g., "4pm - 7pm")
+- **Where preferences** - How far they'll travel, areas they like, the vibe they want
 
-## Don't Panic
+Changed your mind? No problem:
+- Said yes? You can cancel (the group sees you're no longer coming)
+- Said no? You can join later (if there's space at the venue)
 
-Planning social gatherings with friends shouldn't be harder than calculating the probability of being rescued from deep space (which, for the record, is 2^276,709 to 1 against). Yet somehow, the simple act of coordinating "let's grab drinks" often involves more back-and-forth messages than a Vogon bureaucracy permit application.
+### 3. Match
 
-## The Answer to Life, the Universe, and Getting Together
+The app finds places that work for the group based on:
+- Everyone's location and distance limits
+- Preferred areas and styles
+- Group favorites vs. trying somewhere new
 
-Sens-O-Matic is a social planning library that makes spontaneous hangouts as easy as falling off a log. Or more accurately, as easy as falling through space (which, as any hitchhiker knows, is remarkably easy - the trick is learning how to miss the ground).
+It shows a timeline of who's planning to be there when, so you know if it's worth showing up late.
 
-The entire process requires just a few button clicks. No committees. No endless group chats. No planning paralysis. Just pure, distilled social coordination.
+## Place Data
 
-## The Journey Through Hyperspace (How It Works)
+Sens-O-Matic uses a hybrid approach:
+- **Group favorites** - Places your crew knows and likes
+- **Discovery** - New spots from external sources based on your filters
 
-### Phase 1: Wanting
+## Concepts
 
-_Initial state - Like Arthur Dent wanting a proper cup of tea_
+- **Group** - Your circle of friends who might join hangouts
+- **Ping** - An open invitation to gauge interest
+- **Availability** - When someone can be there (start time, end time)
+- **Preferences** - Where constraints (distance, area, style)
 
-Bob feels like grabbing a drink. He opens the app, which starts in the "Wanting" state. He checks a few boxes about what he's in the mood for (drinks, dinner, games) or selects "up for anything" - the pangalactic gargleblaster of social options.
+## Status
 
-### Phase 2: Invitation
-
-Bob sends out an invite to his community. Invitees can be chosen through various strategies:
-
-- **All Online** - Broadcast to everyone currently available
-- **Favorites** - Start with closest friends first
-- **Group Size Matching** - If Bob wants a small gathering, invite fewer people
-- **Cascading** - Start small, expand if insufficient responses
-
-The invitation goes to all selected members who are online. The invitation can be immediate (everyone at once) or sequenced (waves of invites based on response rates).
-
-Invitees have a period of time where they indicate interest. Invitees who don't respond within the timeout are marked as unavailable Those who express interest become Respondents for the next phases.
-
-### Phase 3: When
-
-The respondents see Bob's initial time preference and any new proposals as they come in. They can agree, propose alternatives or decline.
-
-Bob picks the winning time using one of the strategies.
-
-- "Closest to mine" - For the temporally selfish
-- "Most popular" - Democracy in action
-- "Must include Ford and Zaphod" - For when specific participants are essential
-
-### Phase 4: Where
-
-Everyone starts deciding on location using intelligent strategies:
-
-- "Closest to me" - The Zaphod Beeblebrox approach
-- "Geographic center" - Fair and balanced, like a properly toweled hitchhiker
-- "Has Pan-Galactic Gargle Blasters" - Feature-based selection
-- "Not in Vogon territory" - Avoidance zones
-
-Available participants engage in ranked choice voting for the location list generated by each strategy used. The app handles tie-breaking automatically after. Voting ends when everyone has ranked the list or time runs out.
-
-### Phase 5: RSVP
-
-The final What/Where/When is sent as an invite to all respondents, even if they declined, in case they change their mind. Everyone (hoping) RSVPs.
-
-Options include minimum attendance requirements - if fewer than N attendees confirm, the intent fails and everyone tries again another time.
-
-## Future Enhancements
-
-- Late joining for fashionably late arrivals
-- Multi-group coordination (for when your different circles overlap like badly drawn Venn diagrams)
-- Historic pattern learning (the app remembers that Trillian always votes for wine bars)
-
-## Technical Guide
-
-### Building
-
-```bash
-cargo build           # Construct the Heart of Gold
-cargo build --release # With infinite improbability optimization
-```
-
-### Testing
-
-```bash
-cargo test                    # Test all components
-cargo test test_name          # Test specific component
-cargo test -- --nocapture     # See the dolphins' goodbye messages
-```
-
-### Formatting and Linting
-
-```bash
-cargo fmt              # Format code to Galactic standards
-cargo clippy           # Let the ship's computer critique your code
-```
-
-## Architecture
-
-The library implements a typestate pattern that would make even Slartibartfast proud. Each state transition is enforced at compile time - preventing impossible states more effectively than the laws of physics prevent faster-than-light travel (which, as we know, they don't really).
-
-### Core Modules
-
-- **`who`**: Participant modeling (currently as empty as space)
-- **`what`**: Activities and moods (from Coffee to Pan-Galactic Gargle Blasters)
-- **`where`**: Location services (in development, currently lost like Zaphod's second head)
-- **`when`**: Temporal coordination (handles everything except actual time travel)
-
-## Dependencies
-
-- **chrono**: For time handling (because even in an infinite universe, timing matters)
-
-## Contributing
-
-If you'd like to help make spontaneous social planning a reality, grab your towel and join us. We promise the code reviews are nothing like Vogon poetry readings.
-
-## License
-
-This project is about as free as a hitchhiker floating through space - which is to say, very free indeed, within the constraints of whatever license we eventually choose.
-
----
-
-_Remember: The secret to spontaneous social success is knowing where your friends are, when they're free, and always carrying a towel._
-
-_So long, and thanks for all the pull requests._
+Early development. Concept phase.
