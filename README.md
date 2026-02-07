@@ -1,58 +1,105 @@
 # Sens-O-Matic
 
-A mobile app for coordinating spontaneous meetups with friends.
+A backend API for coordinating spontaneous meetups with friends. Turn "Who's up
+for drinks?" into an actual hangout with minimal friction.
 
-## The Problem
+## Overview
 
-Getting friends together for drinks shouldn't require a group chat with 47 messages. The real friction isn't finding who's available - it's finding the overlap of *when* people can be there and *where* works for everyone.
+Sens-O-Matic streamlines group coordination by collecting structured
+availability, finding time overlaps algorithmically, and reducing
+back-and-forth messaging. See [docs/SPEC.md](docs/SPEC.md) for the full
+application specification.
 
-- "I'm free but not if it's downtown"
-- "I can make it but only after 5:30"
-- "Is anyone still going to be there at 7?"
+## Building
 
-Sens-O-Matic helps groups find that overlap quickly.
+Requires Rust 1.85+ (edition 2024).
 
-## How It Works
+```bash
+cargo build
+```
 
-### 1. Ping
+## Running
 
-Someone asks: "Who's up for drinks today?"
+Start the server on port 3000:
 
-This goes out to your group. No need to pick a time or place yet.
+```bash
+cargo run
+```
 
-### 2. Gather
+The API will be available at `http://localhost:3000`.
 
-People respond with:
-- **Yes or No** - Commit or don't. No maybes.
-- **When** - Their availability window (e.g., "4pm - 7pm")
-- **Where preferences** - How far they'll travel, areas they like, the vibe they want
+## API Documentation
 
-Changed your mind? No problem:
-- Said yes? You can cancel (the group sees you're no longer coming)
-- Said no? You can join later (if there's space at the venue)
+Interactive API documentation is available via Swagger UI:
 
-### 3. Match
+```
+http://localhost:3000/swagger-ui/
+```
 
-The app finds places that work for the group based on:
-- Everyone's location and distance limits
-- Preferred areas and styles
-- Group favorites vs. trying somewhere new
+OpenAPI spec is served at:
 
-It shows a timeline of who's planning to be there when, so you know if it's worth showing up late.
+```
+http://localhost:3000/api-docs/openapi.json
+```
 
-## Place Data
+## Testing
 
-Sens-O-Matic uses a hybrid approach:
-- **Group favorites** - Places your crew knows and likes
-- **Discovery** - New spots from external sources based on your filters
+### Unit Tests
 
-## Concepts
+```bash
+cargo test
+```
 
-- **Group** - Your circle of friends who might join hangouts
-- **Ping** - An open invitation to gauge interest
-- **Availability** - When someone can be there (start time, end time)
-- **Preferences** - Where constraints (distance, area, style)
+### API Tests (Hurl)
+
+The project includes comprehensive API tests using [Hurl](https://hurl.dev/).
+
+Run all tests:
+
+```bash
+hurl --test --variables-file tests/hurl/config/local.env tests/hurl/**/*.hurl
+```
+
+Test categories:
+
+| Directory                   | Description                                                   |
+| --------------------------- | ------------------------------------------------------------- |
+| `tests/hurl/entities/`      | CRUD operations for users, groups, pings, responses, hangouts |
+| `tests/hurl/state_machine/` | Ping lifecycle state transitions                              |
+| `tests/hurl/flows/`         | End-to-end user flows                                         |
+| `tests/hurl/errors/`        | Validation and error handling                                 |
+| `tests/hurl/edge_cases/`    | Edge cases (no responses, cancellations, no overlap)          |
+
+## Project Structure
+
+```
+src/
+├── main.rs              # Server entry point
+├── lib.rs               # Library exports
+├── router.rs            # Route definitions with OpenAPI
+├── state.rs             # In-memory state management
+├── state_machine.rs     # Ping lifecycle transitions
+├── matching.rs          # Time overlap algorithm
+├── models/              # Domain types
+│   ├── user.rs
+│   ├── group.rs
+│   ├── ping.rs
+│   ├── response.rs
+│   ├── hangout.rs
+│   └── error.rs
+└── handlers/            # API endpoints
+    ├── users.rs         # User management
+    ├── groups.rs        # Group management
+    ├── pings.rs         # Ping lifecycle
+    ├── responses.rs     # Ping responses
+    └── hangouts.rs      # Hangout management
+```
+
+## Documentation
+
+- [docs/SPEC.md](docs/SPEC.md) - Full application specification
+- [docs/api.yaml](docs/api.yaml) - OpenAPI specification (design reference)
 
 ## Status
 
-Early development. Concept phase.
+Backend API implementation complete with in-memory storage. No persistence layer yet.

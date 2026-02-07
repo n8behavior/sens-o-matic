@@ -1,7 +1,22 @@
 [package]
 name = "sens-o-matic"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-chrono = "0.4.38"
+axum = "0.8.8"
+chrono = { version = "0.4.43", features = ["serde"] }
+rand = "0.9.2"
+regex = "1.12.3"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+tokio = { version = "1.49.0", features = ["full"] }
+tower-http = { version = "0.6.8", features = ["trace", "cors"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+utoipa = { version = "5.4.0", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-axum = "0.2.0"
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+uuid = { version = "1.20.0", features = ["v4", "serde"] }
+validator = { version = "0.20.0", features = ["derive"] }
