@@ -1,0 +1,1155 @@
+openapi: 3.1.0
+info:
+  title: Sens-O-Matic API
+  description: API for coordinating spontaneous meetups with friends
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+paths:
+  # ============================================================================
+  # Users
+  # ============================================================================
+  /api/users:
+    post:
+      summary: Create a new user
+      operationId: createUser
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/users/{id}:
+    get:
+      summary: Get user by ID
+      operationId: getUser
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update user
+      operationId: updateUser
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete user
+      operationId: deleteUser
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: User deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/users/{id}/groups:
+    get:
+      summary: List user's groups
+      operationId: listUserGroups
+      tags: [Users]
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: List of groups the user belongs to
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # Groups
+  # ============================================================================
+  /api/groups:
+    post:
+      summary: Create a new group
+      operationId: createGroup
+      tags: [Groups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/groups/{id}:
+    get:
+      summary: Get group by ID
+      operationId: getGroup
+      tags: [Groups]
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200':
+          description: Group found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/groups/join:
+    post:
+      summary: Join a group via invite code
+      operationId: joinGroup
+      tags: [Groups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinGroupRequest'
+      responses:
+        '200':
+          description: Successfully joined group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Invalid invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/groups/{id}/leave:
+    post:
+      summary: Leave a group
+      operationId: leaveGroup
+      tags: [Groups]
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveGroupRequest'
+      responses:
+        '204':
+          description: Successfully left group
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/groups/{id}/regenerate-invite:
+    post:
+      summary: Regenerate group invite code
+      operationId: regenerateInviteCode
+      tags: [Groups]
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegenerateInviteRequest'
+      responses:
+        '200':
+          description: Invite code regenerated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/groups/{id}/pings:
+    get:
+      summary: List pings in a group
+      operationId: listGroupPings
+      tags: [Groups]
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+        - name: state
+          in: query
+          description: Filter by ping state
+          schema:
+            $ref: '#/components/schemas/PingState'
+      responses:
+        '200':
+          description: List of pings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ping'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============================================================================
+  # Pings
+  # ============================================================================
+  /api/pings:
+    post:
+      summary: Create a new ping
+      operationId: createPing
+      tags: [Pings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePingRequest'
+      responses:
+        '201':
+          description: Ping created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: User not a member of the group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pings/{id}:
+    get:
+      summary: Get ping by ID
+      operationId: getPing
+      tags: [Pings]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+      responses:
+        '200':
+          description: Ping found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/pings/{id}/cancel:
+    post:
+      summary: Cancel a ping
+      operationId: cancelPing
+      tags: [Pings]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelPingRequest'
+      responses:
+        '200':
+          description: Ping cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+        '403':
+          description: Only initiator can cancel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Ping already in terminal state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pings/{id}/responses:
+    post:
+      summary: Submit a response to a ping
+      operationId: createResponse
+      tags: [Responses]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResponseRequest'
+      responses:
+        '201':
+          description: Response submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: User not a member of the group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: User already responded to this ping
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pings/{id}/responses/{responseId}:
+    put:
+      summary: Update a response
+      operationId: updateResponse
+      tags: [Responses]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+        - $ref: '#/components/parameters/ResponseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateResponseRequest'
+      responses:
+        '200':
+          description: Response updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: User can only update their own response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/pings/{id}/match:
+    post:
+      summary: Trigger matching algorithm
+      operationId: triggerMatch
+      tags: [Pings]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerMatchRequest'
+      responses:
+        '200':
+          description: Matching triggered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ping'
+        '403':
+          description: Only initiator can trigger matching
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Ping not in gathering state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pings/{id}/match-results:
+    get:
+      summary: Get match results
+      operationId: getMatchResults
+      tags: [Pings]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+      responses:
+        '200':
+          description: Match results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResults'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Ping not in matching or later state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pings/{id}/confirm:
+    post:
+      summary: Confirm hangout details
+      operationId: confirmHangout
+      tags: [Pings]
+      parameters:
+        - $ref: '#/components/parameters/PingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmHangoutRequest'
+      responses:
+        '201':
+          description: Hangout confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hangout'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Ping not in matching state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # Hangouts
+  # ============================================================================
+  /api/hangouts/{id}:
+    get:
+      summary: Get hangout by ID
+      operationId: getHangout
+      tags: [Hangouts]
+      parameters:
+        - $ref: '#/components/parameters/HangoutId'
+      responses:
+        '200':
+          description: Hangout found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hangout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/hangouts/{id}/activate:
+    post:
+      summary: Activate a hangout (start it)
+      operationId: activateHangout
+      tags: [Hangouts]
+      parameters:
+        - $ref: '#/components/parameters/HangoutId'
+      responses:
+        '200':
+          description: Hangout activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hangout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Hangout not in confirmed state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/hangouts/{id}/complete:
+    post:
+      summary: Complete a hangout
+      operationId: completeHangout
+      tags: [Hangouts]
+      parameters:
+        - $ref: '#/components/parameters/HangoutId'
+      responses:
+        '200':
+          description: Hangout completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hangout'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Hangout not in active state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/hangouts/{id}/attendees/{userId}/status:
+    put:
+      summary: Update attendee status
+      operationId: updateAttendeeStatus
+      tags: [Hangouts]
+      parameters:
+        - $ref: '#/components/parameters/HangoutId'
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAttendeeStatusRequest'
+      responses:
+        '200':
+          description: Attendee status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hangout'
+        '403':
+          description: User can only update their own status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  # ============================================================================
+  # Parameters
+  # ============================================================================
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: User ID
+      schema:
+        type: string
+        format: uuid
+
+    GroupId:
+      name: id
+      in: path
+      required: true
+      description: Group ID
+      schema:
+        type: string
+        format: uuid
+
+    PingId:
+      name: id
+      in: path
+      required: true
+      description: Ping ID
+      schema:
+        type: string
+        format: uuid
+
+    ResponseId:
+      name: responseId
+      in: path
+      required: true
+      description: Response ID
+      schema:
+        type: string
+        format: uuid
+
+    HangoutId:
+      name: id
+      in: path
+      required: true
+      description: Hangout ID
+      schema:
+        type: string
+        format: uuid
+
+  # ============================================================================
+  # Responses
+  # ============================================================================
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  # ============================================================================
+  # Schemas
+  # ============================================================================
+  schemas:
+    # --------------------------------------------------------------------------
+    # Error
+    # --------------------------------------------------------------------------
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+
+    # --------------------------------------------------------------------------
+    # User
+    # --------------------------------------------------------------------------
+    User:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+
+    UserPreferences:
+      type: object
+      properties:
+        default_distance:
+          type: number
+          description: Default max distance in miles
+          minimum: 0
+        favorite_areas:
+          type: array
+          items:
+            type: string
+        home_location:
+          $ref: '#/components/schemas/Location'
+          nullable: true
+
+    Location:
+      type: object
+      required:
+        - lat
+        - lng
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+
+    CreateUserRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        avatar:
+          type: string
+          format: uri
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        preferences:
+          $ref: '#/components/schemas/UserPreferences'
+
+    # --------------------------------------------------------------------------
+    # Group
+    # --------------------------------------------------------------------------
+    Group:
+      type: object
+      required:
+        - id
+        - name
+        - members
+        - invite_code
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        members:
+          type: array
+          items:
+            type: string
+            format: uuid
+        invite_code:
+          type: string
+          pattern: '^[A-Za-z0-9]{6,8}$'
+
+    CreateGroupRequest:
+      type: object
+      required:
+        - name
+        - creator_id
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        creator_id:
+          type: string
+          format: uuid
+
+    JoinGroupRequest:
+      type: object
+      required:
+        - user_id
+        - invite_code
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        invite_code:
+          type: string
+          pattern: '^[A-Za-z0-9]{6,8}$'
+
+    LeaveGroupRequest:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+
+    RegenerateInviteRequest:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+
+    # --------------------------------------------------------------------------
+    # Ping
+    # --------------------------------------------------------------------------
+    PingState:
+      type: string
+      enum:
+        - ping_sent
+        - gathering
+        - matching
+        - venue_confirmed
+        - active_hangout
+        - complete
+        - cancelled
+        - no_match
+
+    Ping:
+      type: object
+      required:
+        - id
+        - initiator
+        - group
+        - activity_type
+        - rough_timing
+        - state
+        - responses
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        initiator:
+          type: string
+          format: uuid
+        group:
+          type: string
+          format: uuid
+        activity_type:
+          type: string
+          description: Type of activity (drinks, dinner, coffee, etc.)
+        rough_timing:
+          type: string
+          description: General time frame (today, tonight, this afternoon)
+        vibe:
+          type: string
+          nullable: true
+          description: Optional mood/style hints
+        state:
+          $ref: '#/components/schemas/PingState'
+        responses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Response'
+        hangout_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of created hangout if venue_confirmed or later
+        created_at:
+          type: string
+          format: date-time
+
+    CreatePingRequest:
+      type: object
+      required:
+        - initiator
+        - group
+        - activity_type
+        - rough_timing
+      properties:
+        initiator:
+          type: string
+          format: uuid
+        group:
+          type: string
+          format: uuid
+        activity_type:
+          type: string
+          minLength: 1
+          maxLength: 50
+        rough_timing:
+          type: string
+          minLength: 1
+          maxLength: 50
+        vibe:
+          type: string
+          maxLength: 100
+
+    CancelPingRequest:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+
+    TriggerMatchRequest:
+      type: object
+      required:
+        - user_id
+      properties:
+        user_id:
+          type: string
+          format: uuid
+
+    # --------------------------------------------------------------------------
+    # Response
+    # --------------------------------------------------------------------------
+    Response:
+      type: object
+      required:
+        - id
+        - user
+        - answer
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user:
+          type: string
+          format: uuid
+        answer:
+          type: boolean
+        availability:
+          $ref: '#/components/schemas/Availability'
+          nullable: true
+        preferences:
+          $ref: '#/components/schemas/ResponsePreferences'
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    Availability:
+      type: object
+      required:
+        - earliest
+        - latest
+      properties:
+        earliest:
+          type: string
+          format: date-time
+        latest:
+          type: string
+          format: date-time
+
+    ResponsePreferences:
+      type: object
+      properties:
+        max_distance:
+          type: number
+          description: Max distance in miles
+          minimum: 0
+        preferred_areas:
+          type: array
+          items:
+            type: string
+        excluded_areas:
+          type: array
+          items:
+            type: string
+
+    CreateResponseRequest:
+      type: object
+      required:
+        - user
+        - answer
+      properties:
+        user:
+          type: string
+          format: uuid
+        answer:
+          type: boolean
+        availability:
+          $ref: '#/components/schemas/Availability'
+        preferences:
+          $ref: '#/components/schemas/ResponsePreferences'
+
+    UpdateResponseRequest:
+      type: object
+      required:
+        - user
+      properties:
+        user:
+          type: string
+          format: uuid
+        answer:
+          type: boolean
+        availability:
+          $ref: '#/components/schemas/Availability'
+        preferences:
+          $ref: '#/components/schemas/ResponsePreferences'
+
+    # --------------------------------------------------------------------------
+    # Match Results
+    # --------------------------------------------------------------------------
+    MatchResults:
+      type: object
+      required:
+        - ping_id
+        - overlap
+        - has_match
+      properties:
+        ping_id:
+          type: string
+          format: uuid
+        overlap:
+          $ref: '#/components/schemas/TimeOverlap'
+          nullable: true
+        has_match:
+          type: boolean
+
+    TimeOverlap:
+      type: object
+      required:
+        - start
+        - end
+        - attendee_count
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        attendee_count:
+          type: integer
+          minimum: 0
+
+    ConfirmHangoutRequest:
+      type: object
+      required:
+        - user_id
+        - timeline
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        timeline:
+          $ref: '#/components/schemas/Timeline'
+
+    # --------------------------------------------------------------------------
+    # Hangout
+    # --------------------------------------------------------------------------
+    HangoutStatus:
+      type: string
+      enum:
+        - confirmed
+        - active
+        - complete
+
+    AttendeeStatus:
+      type: string
+      enum:
+        - pending
+        - enroute
+        - arrived
+        - left
+
+    Hangout:
+      type: object
+      required:
+        - id
+        - ping
+        - confirmed_attendees
+        - timeline
+        - status
+        - attendee_statuses
+      properties:
+        id:
+          type: string
+          format: uuid
+        ping:
+          type: string
+          format: uuid
+        confirmed_attendees:
+          type: array
+          items:
+            type: string
+            format: uuid
+        timeline:
+          $ref: '#/components/schemas/Timeline'
+        status:
+          $ref: '#/components/schemas/HangoutStatus'
+        attendee_statuses:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/AttendeeStatus'
+
+    Timeline:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+
+    UpdateAttendeeStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/AttendeeStatus'
+
+tags:
+  - name: Users
+    description: User management
+  - name: Groups
+    description: Group management
+  - name: Pings
+    description: Ping lifecycle
+  - name: Responses
+    description: Ping responses
+  - name: Hangouts
+    description: Hangout management
