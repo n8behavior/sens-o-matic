@@ -2,6 +2,9 @@ use chrono::{DateTime, Utc};
 
 use crate::models::{MatchResults, Ping, Response, TimeOverlap};
 
+#[cfg(test)]
+use crate::models::PingLifecycle;
+
 pub struct MatchingEngine;
 
 impl MatchingEngine {
@@ -70,16 +73,12 @@ impl MatchingEngine {
             attendee_count: responses.len() as i32,
         })
     }
-
-    pub fn get_or_calculate_match(ping: &Ping, stored: Option<MatchResults>) -> MatchResults {
-        stored.unwrap_or_else(|| Self::calculate_match(ping))
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Availability, PingState};
+    use crate::models::Availability;
     use uuid::Uuid;
 
     fn create_test_response(user_id: Uuid, earliest: &str, latest: &str) -> Response {
@@ -104,9 +103,9 @@ mod tests {
             activity_type: "drinks".to_string(),
             rough_timing: "tonight".to_string(),
             vibe: None,
-            state: PingState::Gathering,
-            responses: vec![],
-            hangout_id: None,
+            lifecycle: PingLifecycle::Gathering {
+                responses: vec![],
+            },
             created_at: Utc::now(),
         }
     }
@@ -116,18 +115,23 @@ mod tests {
         let mut ping = create_test_ping();
 
         // User 1: 17:00 - 21:00
-        ping.responses.push(create_test_response(
+        let response1 = create_test_response(
             Uuid::new_v4(),
             "2024-12-15T17:00:00Z",
             "2024-12-15T21:00:00Z",
-        ));
+        );
 
         // User 2: 18:00 - 22:00
-        ping.responses.push(create_test_response(
+        let response2 = create_test_response(
             Uuid::new_v4(),
             "2024-12-15T18:00:00Z",
             "2024-12-15T22:00:00Z",
-        ));
+        );
+
+        if let PingLifecycle::Gathering { responses } = &mut ping.lifecycle {
+            responses.push(response1);
+            responses.push(response2);
+        }
 
         let result = MatchingEngine::calculate_match(&ping);
         assert!(result.has_match);
@@ -151,18 +155,23 @@ mod tests {
         let mut ping = create_test_ping();
 
         // User 1: 16:00 - 18:00
-        ping.responses.push(create_test_response(
+        let response1 = create_test_response(
             Uuid::new_v4(),
             "2024-12-15T16:00:00Z",
             "2024-12-15T18:00:00Z",
-        ));
+        );
 
         // User 2: 19:00 - 23:00 (no overlap)
-        ping.responses.push(create_test_response(
+        let response2 = create_test_response(
             Uuid::new_v4(),
             "2024-12-15T19:00:00Z",
             "2024-12-15T23:00:00Z",
-        ));
+        );
+
+        if let PingLifecycle::Gathering { responses } = &mut ping.lifecycle {
+            responses.push(response1);
+            responses.push(response2);
+        }
 
         let result = MatchingEngine::calculate_match(&ping);
         assert!(!result.has_match);

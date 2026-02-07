@@ -56,7 +56,6 @@ HTTP 201
 ping_id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.state" == "ping_sent"
-jsonpath "$.responses" count == 0
 
 
 # Verify ping can be retrieved

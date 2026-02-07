@@ -86,15 +86,13 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 
 
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 200
 
 
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+POST {{BASE_URL}}/api/pings/{{ping_id}}/complete
 HTTP 200
 
 
@@ -103,12 +101,7 @@ GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.state" == "complete"
-
-
-GET {{BASE_URL}}/api/hangouts/{{hangout_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.status" == "complete"
+jsonpath "$.hangout" exists
 
 
 # Complete is terminal - cannot transition further
@@ -147,13 +140,13 @@ Content-Type: application/json
 HTTP 409
 
 
-# Cannot activate hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+# Cannot activate again
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 409
 
 
 # Cannot complete again
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+POST {{BASE_URL}}/api/pings/{{ping_id}}/complete
 HTTP 409
 
 
@@ -162,9 +155,4 @@ GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.state" == "complete"
-
-
-GET {{BASE_URL}}/api/hangouts/{{hangout_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.status" == "complete"
+jsonpath "$.hangout" exists

@@ -230,7 +230,7 @@ HTTP 409
 jsonpath "$.error" exists
 
 
-# Confirm hangout
+# Confirm hangout - now returns Ping, not Hangout
 POST {{BASE_URL}}/api/pings/{{ping2_id}}/confirm
 Content-Type: application/json
 {
@@ -241,8 +241,6 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 
 
 # Cannot confirm again
@@ -260,32 +258,32 @@ HTTP 409
 jsonpath "$.error" exists
 
 
-# Cannot complete hangout before activation
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+# Cannot complete ping before activation
+POST {{BASE_URL}}/api/pings/{{ping2_id}}/complete
 HTTP 409
 [Asserts]
 jsonpath "$.error" exists
 
 
-# Activate hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+# Activate ping
+POST {{BASE_URL}}/api/pings/{{ping2_id}}/activate
 HTTP 200
 
 
 # Cannot activate again
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+POST {{BASE_URL}}/api/pings/{{ping2_id}}/activate
 HTTP 409
 [Asserts]
 jsonpath "$.error" exists
 
 
-# Complete hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+# Complete ping
+POST {{BASE_URL}}/api/pings/{{ping2_id}}/complete
 HTTP 200
 
 
 # Cannot complete again
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+POST {{BASE_URL}}/api/pings/{{ping2_id}}/complete
 HTTP 409
 [Asserts]
 jsonpath "$.error" exists

@@ -86,8 +86,6 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 
 
 # Verify venue_confirmed state
@@ -97,13 +95,13 @@ HTTP 200
 jsonpath "$.state" == "venue_confirmed"
 
 
-# Hangout is in confirmed status
-GET {{BASE_URL}}/api/hangouts/{{hangout_id}}
+# Ping has hangout data embedded
+GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "confirmed"
-jsonpath "$.timeline.start" exists
-jsonpath "$.timeline.end" exists
+jsonpath "$.hangout" exists
+jsonpath "$.hangout.timeline.start" exists
+jsonpath "$.hangout.timeline.end" exists
 
 
 # Cannot trigger matching again
@@ -128,11 +126,11 @@ Content-Type: application/json
 HTTP 409
 
 
-# Can activate the hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+# Can activate the ping (start the hangout)
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "active"
+jsonpath "$.state" == "active_hangout"
 
 
 # Ping state updated to active_hangout

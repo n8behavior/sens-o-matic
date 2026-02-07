@@ -63,7 +63,6 @@ jsonpath "$.activity_type" == "drinks"
 jsonpath "$.rough_timing" == "tonight"
 jsonpath "$.vibe" == "chill"
 jsonpath "$.state" == "ping_sent"
-jsonpath "$.responses" count == 0
 jsonpath "$.created_at" exists
 
 

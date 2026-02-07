@@ -103,7 +103,7 @@ pub async fn update_response(
 
     // Find the response
     let existing_response = ping
-        .responses
+        .responses()
         .iter()
         .find(|r| r.id == response_id)
         .ok_or_else(|| AppError::NotFound("Response".to_string()))?;

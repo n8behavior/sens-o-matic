@@ -118,15 +118,13 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 
 
-# Activate hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+# Activate ping
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "active"
+jsonpath "$.state" == "active_hangout"
 
 
 # Verify active_hangout state
@@ -137,27 +135,27 @@ jsonpath "$.state" == "active_hangout"
 
 
 # Attendees can update their status
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{attendee1_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{attendee1_id}}/status
 Content-Type: application/json
 {
   "status": "enroute"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{attendee1_id}}']" == "enroute"
+jsonpath "$.hangout.attendee_statuses['{{attendee1_id}}']" == "enroute"
 
 
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{attendee1_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{attendee1_id}}/status
 Content-Type: application/json
 {
   "status": "arrived"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{attendee1_id}}']" == "arrived"
+jsonpath "$.hangout.attendee_statuses['{{attendee1_id}}']" == "arrived"
 
 
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{attendee2_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{attendee2_id}}/status
 Content-Type: application/json
 {
   "status": "arrived"
@@ -166,26 +164,26 @@ HTTP 200
 
 
 # Update to left status
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{attendee1_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{attendee1_id}}/status
 Content-Type: application/json
 {
   "status": "left"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{attendee1_id}}']" == "left"
+jsonpath "$.hangout.attendee_statuses['{{attendee1_id}}']" == "left"
 
 
 # Cannot activate again
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 409
 
 
-# Can complete hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+# Can complete ping
+POST {{BASE_URL}}/api/pings/{{ping_id}}/complete
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "complete"
+jsonpath "$.state" == "complete"
 
 
 # Ping state updated to complete

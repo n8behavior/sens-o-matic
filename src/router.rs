@@ -4,7 +4,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::handlers::{groups, hangouts, pings, responses, users};
+use crate::handlers::{groups, pings, responses, users};
 use crate::models;
 use crate::state::AppState;
 
@@ -19,8 +19,7 @@ use crate::state::AppState;
         (name = "Users", description = "User management"),
         (name = "Groups", description = "Group management"),
         (name = "Pings", description = "Ping lifecycle"),
-        (name = "Responses", description = "Ping responses"),
-        (name = "Hangouts", description = "Hangout management")
+        (name = "Responses", description = "Ping responses")
     ),
     components(schemas(
         models::ApiError,
@@ -35,7 +34,7 @@ use crate::state::AppState;
         models::LeaveGroupRequest,
         models::RegenerateInviteRequest,
         models::Ping,
-        models::PingState,
+        models::PingLifecycle,
         models::CreatePingRequest,
         models::CancelPingRequest,
         models::TriggerMatchRequest,
@@ -44,8 +43,7 @@ use crate::state::AppState;
         models::ResponsePreferences,
         models::CreateResponseRequest,
         models::UpdateResponseRequest,
-        models::Hangout,
-        models::HangoutStatus,
+        models::HangoutData,
         models::AttendeeStatus,
         models::Timeline,
         models::ConfirmHangoutRequest,
@@ -76,14 +74,12 @@ pub fn create_router(state: AppState) -> Router {
         .routes(routes!(pings::trigger_match))
         .routes(routes!(pings::get_match_results))
         .routes(routes!(pings::confirm_hangout))
+        .routes(routes!(pings::activate_ping))
+        .routes(routes!(pings::complete_ping))
+        .routes(routes!(pings::update_attendee_status))
         // Responses
         .routes(routes!(responses::create_response))
         .routes(routes!(responses::update_response))
-        // Hangouts
-        .routes(routes!(hangouts::get_hangout))
-        .routes(routes!(hangouts::activate_hangout))
-        .routes(routes!(hangouts::complete_hangout))
-        .routes(routes!(hangouts::update_attendee_status))
         .with_state(state)
         .split_for_parts();
 

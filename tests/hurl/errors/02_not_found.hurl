@@ -156,6 +156,31 @@ HTTP 404
 jsonpath "$.error" exists
 
 
+# Activate non-existent ping
+POST {{BASE_URL}}/api/pings/00000000-0000-0000-0000-000000000000/activate
+HTTP 404
+[Asserts]
+jsonpath "$.error" exists
+
+
+# Complete non-existent ping
+POST {{BASE_URL}}/api/pings/00000000-0000-0000-0000-000000000000/complete
+HTTP 404
+[Asserts]
+jsonpath "$.error" exists
+
+
+# Update attendee status for non-existent ping
+PUT {{BASE_URL}}/api/pings/00000000-0000-0000-0000-000000000000/attendees/00000000-0000-0000-0000-000000000001/status
+Content-Type: application/json
+{
+  "status": "arrived"
+}
+HTTP 404
+[Asserts]
+jsonpath "$.error" exists
+
+
 # ============================================================================
 # Response Not Found
 # ============================================================================
@@ -201,42 +226,6 @@ Content-Type: application/json
 {
   "user": "{{user_id}}",
   "answer": true
-}
-HTTP 404
-[Asserts]
-jsonpath "$.error" exists
-
-
-# ============================================================================
-# Hangout Not Found
-# ============================================================================
-
-# Get non-existent hangout
-GET {{BASE_URL}}/api/hangouts/00000000-0000-0000-0000-000000000000
-HTTP 404
-[Asserts]
-jsonpath "$.error" exists
-
-
-# Activate non-existent hangout
-POST {{BASE_URL}}/api/hangouts/00000000-0000-0000-0000-000000000000/activate
-HTTP 404
-[Asserts]
-jsonpath "$.error" exists
-
-
-# Complete non-existent hangout
-POST {{BASE_URL}}/api/hangouts/00000000-0000-0000-0000-000000000000/complete
-HTTP 404
-[Asserts]
-jsonpath "$.error" exists
-
-
-# Update attendee status for non-existent hangout
-PUT {{BASE_URL}}/api/hangouts/00000000-0000-0000-0000-000000000000/attendees/00000000-0000-0000-0000-000000000001/status
-Content-Type: application/json
-{
-  "status": "arrived"
 }
 HTTP 404
 [Asserts]

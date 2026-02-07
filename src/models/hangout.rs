@@ -7,14 +7,6 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HangoutStatus {
-    Confirmed,
-    Active,
-    Complete,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
 pub enum AttendeeStatus {
     Pending,
     Enroute,
@@ -28,14 +20,13 @@ pub struct Timeline {
     pub end: DateTime<Utc>,
 }
 
+/// Data associated with a hangout phase of a ping.
+/// This is a value object, not an entity - the Ping ID is the hangout identifier.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct Hangout {
-    pub id: Uuid,
-    pub ping: Uuid,
+pub struct HangoutData {
     pub confirmed_attendees: Vec<Uuid>,
     pub timeline: Timeline,
-    pub status: HangoutStatus,
-    pub attendee_statuses: HashMap<String, AttendeeStatus>,
+    pub attendee_statuses: HashMap<Uuid, AttendeeStatus>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
@@ -63,33 +54,22 @@ pub struct MatchResults {
     pub has_match: bool,
 }
 
-impl Hangout {
-    pub fn new(ping_id: Uuid, attendees: Vec<Uuid>, timeline: Timeline) -> Self {
+impl HangoutData {
+    pub fn new(attendees: Vec<Uuid>, timeline: Timeline) -> Self {
         let attendee_statuses = attendees
             .iter()
-            .map(|id| (id.to_string(), AttendeeStatus::Pending))
+            .map(|id| (*id, AttendeeStatus::Pending))
             .collect();
 
         Self {
-            id: Uuid::new_v4(),
-            ping: ping_id,
             confirmed_attendees: attendees,
             timeline,
-            status: HangoutStatus::Confirmed,
             attendee_statuses,
         }
     }
 
-    pub fn activate(&mut self) {
-        self.status = HangoutStatus::Active;
-    }
-
-    pub fn complete(&mut self) {
-        self.status = HangoutStatus::Complete;
-    }
-
     pub fn update_attendee_status(&mut self, user_id: Uuid, status: AttendeeStatus) {
-        self.attendee_statuses.insert(user_id.to_string(), status);
+        self.attendee_statuses.insert(user_id, status);
     }
 
     pub fn is_attendee(&self, user_id: Uuid) -> bool {

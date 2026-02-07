@@ -151,7 +151,7 @@ HTTP 409
 jsonpath "$.error" exists
 
 
-# Can confirm hangout from matching
+# Can confirm hangout from matching - returns Ping with hangout data
 POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
 Content-Type: application/json
 {
@@ -162,10 +162,9 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 [Asserts]
-jsonpath "$.status" == "confirmed"
+jsonpath "$.state" == "venue_confirmed"
+jsonpath "$.hangout" exists
 
 
 # Ping state updated to venue_confirmed
@@ -173,4 +172,4 @@ GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.state" == "venue_confirmed"
-jsonpath "$.hangout_id" == {{hangout_id}}
+jsonpath "$.hangout.timeline.start" exists

@@ -1,4 +1,4 @@
-# Hangout CRUD Tests
+# Hangout Tests (now part of Ping lifecycle)
 
 # Setup: Create full flow to get to hangout
 POST {{BASE_URL}}/api/users
@@ -124,7 +124,7 @@ jsonpath "$.overlap.end" exists
 jsonpath "$.overlap.attendee_count" >= 2
 
 
-# Confirm hangout
+# Confirm hangout - returns ping with hangout data
 POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
 Content-Type: application/json
 {
@@ -135,61 +135,60 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 [Asserts]
-jsonpath "$.ping" == {{ping_id}}
-jsonpath "$.status" == "confirmed"
-jsonpath "$.confirmed_attendees" count >= 1
-jsonpath "$.timeline.start" exists
-jsonpath "$.attendee_statuses" exists
+jsonpath "$.id" == {{ping_id}}
+jsonpath "$.state" == "venue_confirmed"
+jsonpath "$.hangout.confirmed_attendees" count >= 1
+jsonpath "$.hangout.timeline.start" exists
+jsonpath "$.hangout.attendee_statuses" exists
 
 
-# Get hangout by ID
-GET {{BASE_URL}}/api/hangouts/{{hangout_id}}
+# Get ping to verify venue_confirmed state with hangout data
+GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
-jsonpath "$.id" == {{hangout_id}}
-jsonpath "$.status" == "confirmed"
+jsonpath "$.id" == {{ping_id}}
+jsonpath "$.state" == "venue_confirmed"
+jsonpath "$.hangout" exists
 
 
-# Activate hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+# Activate ping (starts the hangout)
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "active"
+jsonpath "$.state" == "active_hangout"
 
 
 # Update attendee status to enroute
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{attendee1_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{attendee1_id}}/status
 Content-Type: application/json
 {
   "status": "enroute"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{attendee1_id}}']" == "enroute"
+jsonpath "$.hangout.attendee_statuses['{{attendee1_id}}']" == "enroute"
 
 
 # Update attendee status to arrived
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{attendee1_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{attendee1_id}}/status
 Content-Type: application/json
 {
   "status": "arrived"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{attendee1_id}}']" == "arrived"
+jsonpath "$.hangout.attendee_statuses['{{attendee1_id}}']" == "arrived"
 
 
-# Complete hangout
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+# Complete ping
+POST {{BASE_URL}}/api/pings/{{ping_id}}/complete
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "complete"
+jsonpath "$.state" == "complete"
 
 
-# Verify ping state updated
+# Verify ping is in complete state
 GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]

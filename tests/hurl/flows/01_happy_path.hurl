@@ -195,10 +195,9 @@ Content-Type: application/json
   }
 }
 HTTP 201
-[Captures]
-hangout_id: jsonpath "$.id"
 [Asserts]
-jsonpath "$.status" == "confirmed"
+jsonpath "$.state" == "venue_confirmed"
+jsonpath "$.hangout" exists
 
 
 # Verify ping state
@@ -206,17 +205,17 @@ GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.state" == "venue_confirmed"
-jsonpath "$.hangout_id" == {{hangout_id}}
+jsonpath "$.hangout.timeline.start" exists
 
 
 # ============================================================================
 # Step 7: Activate Hangout
 # ============================================================================
 
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/activate
+POST {{BASE_URL}}/api/pings/{{ping_id}}/activate
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "active"
+jsonpath "$.state" == "active_hangout"
 
 
 GET {{BASE_URL}}/api/pings/{{ping_id}}
@@ -230,29 +229,29 @@ jsonpath "$.state" == "active_hangout"
 # ============================================================================
 
 # Mike is enroute
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{mike_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{mike_id}}/status
 Content-Type: application/json
 {
   "status": "enroute"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{mike_id}}']" == "enroute"
+jsonpath "$.hangout.attendee_statuses['{{mike_id}}']" == "enroute"
 
 
 # Mike arrives
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{mike_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{mike_id}}/status
 Content-Type: application/json
 {
   "status": "arrived"
 }
 HTTP 200
 [Asserts]
-jsonpath "$.attendee_statuses['{{mike_id}}']" == "arrived"
+jsonpath "$.hangout.attendee_statuses['{{mike_id}}']" == "arrived"
 
 
 # Jen arrives
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{jen_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{jen_id}}/status
 Content-Type: application/json
 {
   "status": "arrived"
@@ -261,7 +260,7 @@ HTTP 200
 
 
 # Mike leaves
-PUT {{BASE_URL}}/api/hangouts/{{hangout_id}}/attendees/{{mike_id}}/status
+PUT {{BASE_URL}}/api/pings/{{ping_id}}/attendees/{{mike_id}}/status
 Content-Type: application/json
 {
   "status": "left"
@@ -273,10 +272,10 @@ HTTP 200
 # Step 9: Complete Hangout
 # ============================================================================
 
-POST {{BASE_URL}}/api/hangouts/{{hangout_id}}/complete
+POST {{BASE_URL}}/api/pings/{{ping_id}}/complete
 HTTP 200
 [Asserts]
-jsonpath "$.status" == "complete"
+jsonpath "$.state" == "complete"
 
 
 # Verify final states
@@ -284,9 +283,4 @@ GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.state" == "complete"
-
-
-GET {{BASE_URL}}/api/hangouts/{{hangout_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.status" == "complete"
+jsonpath "$.hangout" exists

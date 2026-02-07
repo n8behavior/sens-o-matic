@@ -57,7 +57,6 @@ HTTP 201
 ping_id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.state" == "ping_sent"
-jsonpath "$.responses" count == 0
 
 
 # Ping stays in ping_sent with no responses
@@ -65,7 +64,6 @@ GET {{BASE_URL}}/api/pings/{{ping_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.state" == "ping_sent"
-jsonpath "$.responses" count == 0
 
 
 # Cannot trigger matching with no responses

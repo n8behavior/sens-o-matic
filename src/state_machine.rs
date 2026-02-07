@@ -1,16 +1,15 @@
 use uuid::Uuid;
 
-use crate::models::{AppError, Hangout, Ping, PingState, Timeline};
-use crate::state::AppState;
+use crate::models::{AppError, HangoutData, MatchResults, Ping, PingLifecycle, Timeline};
 
 pub struct StateMachine;
 
 impl StateMachine {
     pub fn can_add_response(ping: &Ping) -> Result<(), AppError> {
-        if !ping.state.can_add_response() {
+        if !ping.lifecycle.can_add_response() {
             return Err(AppError::Conflict(format!(
-                "Cannot add response when ping is in {:?} state",
-                ping.state
+                "Cannot add response when ping is in {} state",
+                ping.lifecycle.state_name()
             )));
         }
         Ok(())
@@ -23,10 +22,10 @@ impl StateMachine {
             ));
         }
 
-        if !ping.state.can_trigger_match() {
+        if !ping.lifecycle.can_trigger_match() {
             return Err(AppError::Conflict(format!(
-                "Cannot trigger match when ping is in {:?} state",
-                ping.state
+                "Cannot trigger match when ping is in {} state",
+                ping.lifecycle.state_name()
             )));
         }
 
@@ -34,10 +33,30 @@ impl StateMachine {
     }
 
     pub fn can_confirm(ping: &Ping) -> Result<(), AppError> {
-        if !ping.state.can_confirm() {
+        if !ping.lifecycle.can_confirm() {
             return Err(AppError::Conflict(format!(
-                "Cannot confirm when ping is in {:?} state",
-                ping.state
+                "Cannot confirm when ping is in {} state",
+                ping.lifecycle.state_name()
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn can_activate(ping: &Ping) -> Result<(), AppError> {
+        if !ping.lifecycle.can_activate() {
+            return Err(AppError::Conflict(format!(
+                "Cannot activate when ping is in {} state",
+                ping.lifecycle.state_name()
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn can_complete(ping: &Ping) -> Result<(), AppError> {
+        if !ping.lifecycle.can_complete() {
+            return Err(AppError::Conflict(format!(
+                "Cannot complete when ping is in {} state",
+                ping.lifecycle.state_name()
             )));
         }
         Ok(())
@@ -50,78 +69,67 @@ impl StateMachine {
             ));
         }
 
-        if !ping.state.can_cancel() {
+        if !ping.lifecycle.can_cancel() {
             return Err(AppError::Conflict(format!(
-                "Cannot cancel when ping is in {:?} state",
-                ping.state
+                "Cannot cancel when ping is in {} state",
+                ping.lifecycle.state_name()
             )));
         }
 
         Ok(())
     }
 
-    pub fn transition_to_matching(ping: &mut Ping, has_match: bool) {
-        if has_match {
-            ping.state = PingState::Matching;
+    pub fn transition_to_matching(ping: &mut Ping, match_results: MatchResults) {
+        if match_results.has_match {
+            if let PingLifecycle::Gathering { responses } = &ping.lifecycle {
+                ping.lifecycle = PingLifecycle::Matching {
+                    responses: responses.clone(),
+                    match_results,
+                };
+            }
         } else {
-            ping.state = PingState::NoMatch;
+            if let PingLifecycle::Gathering { responses } = &ping.lifecycle {
+                ping.lifecycle = PingLifecycle::NoMatch {
+                    responses: responses.clone(),
+                };
+            }
         }
     }
 
-    pub fn transition_to_venue_confirmed(ping: &mut Ping, hangout_id: Uuid) {
-        ping.state = PingState::VenueConfirmed;
-        ping.hangout_id = Some(hangout_id);
+    pub fn transition_to_venue_confirmed(ping: &mut Ping, hangout: HangoutData) {
+        if let PingLifecycle::Matching { responses, .. } = &ping.lifecycle {
+            ping.lifecycle = PingLifecycle::VenueConfirmed {
+                responses: responses.clone(),
+                hangout,
+            };
+        }
     }
 
     pub fn transition_to_active(ping: &mut Ping) {
-        ping.state = PingState::ActiveHangout;
+        if let PingLifecycle::VenueConfirmed { responses, hangout } = &ping.lifecycle {
+            ping.lifecycle = PingLifecycle::ActiveHangout {
+                responses: responses.clone(),
+                hangout: hangout.clone(),
+            };
+        }
     }
 
     pub fn transition_to_complete(ping: &mut Ping) {
-        ping.state = PingState::Complete;
+        if let PingLifecycle::ActiveHangout { responses, hangout } = &ping.lifecycle {
+            ping.lifecycle = PingLifecycle::Complete {
+                responses: responses.clone(),
+                hangout: hangout.clone(),
+            };
+        }
     }
 
     pub fn transition_to_cancelled(ping: &mut Ping) {
-        ping.state = PingState::Cancelled;
+        let responses = ping.lifecycle.responses().to_vec();
+        ping.lifecycle = PingLifecycle::Cancelled { responses };
     }
 
-    pub fn create_hangout(ping: &Ping, timeline: Timeline) -> Hangout {
+    pub fn create_hangout_data(ping: &Ping, timeline: Timeline) -> HangoutData {
         let attendees: Vec<Uuid> = ping.positive_responses().iter().map(|r| r.user).collect();
-        Hangout::new(ping.id, attendees, timeline)
-    }
-
-    pub fn can_activate_hangout(hangout: &Hangout) -> Result<(), AppError> {
-        if hangout.status != crate::models::HangoutStatus::Confirmed {
-            return Err(AppError::Conflict(
-                "Hangout is not in confirmed state".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    pub fn can_complete_hangout(hangout: &Hangout) -> Result<(), AppError> {
-        if hangout.status != crate::models::HangoutStatus::Active {
-            return Err(AppError::Conflict(
-                "Hangout is not in active state".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    pub fn sync_ping_state_from_hangout(state: &AppState, hangout: &Hangout) {
-        let status = hangout.status;
-        state.pings.update(&hangout.ping, |ping| {
-            match status {
-                crate::models::HangoutStatus::Active => {
-                    ping.state = PingState::ActiveHangout;
-                }
-                crate::models::HangoutStatus::Complete => {
-                    ping.state = PingState::Complete;
-                }
-                crate::models::HangoutStatus::Confirmed => {
-                    // Already set during confirm
-                }
-            }
-        });
+        HangoutData::new(attendees, timeline)
     }
 }

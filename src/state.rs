@@ -5,7 +5,7 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::models::{Group, Hangout, MatchResults, Ping, User};
+use crate::models::{Group, Ping, User};
 
 #[derive(Debug, Default)]
 pub struct InMemoryStore<T> {
@@ -79,8 +79,6 @@ pub struct AppState {
     pub users: Arc<InMemoryStore<User>>,
     pub groups: Arc<InMemoryStore<Group>>,
     pub pings: Arc<InMemoryStore<Ping>>,
-    pub hangouts: Arc<InMemoryStore<Hangout>>,
-    pub match_results: Arc<InMemoryStore<MatchResults>>,
 }
 
 impl Default for AppState {
@@ -95,8 +93,6 @@ impl AppState {
             users: Arc::new(InMemoryStore::new()),
             groups: Arc::new(InMemoryStore::new()),
             pings: Arc::new(InMemoryStore::new()),
-            hangouts: Arc::new(InMemoryStore::new()),
-            match_results: Arc::new(InMemoryStore::new()),
         }
     }
 

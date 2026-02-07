@@ -10,10 +10,10 @@ pub use group::{
     CreateGroupRequest, Group, JoinGroupRequest, LeaveGroupRequest, RegenerateInviteRequest,
 };
 pub use hangout::{
-    AttendeeStatus, ConfirmHangoutRequest, Hangout, HangoutStatus, MatchResults, TimeOverlap,
-    Timeline, UpdateAttendeeStatusRequest,
+    AttendeeStatus, ConfirmHangoutRequest, HangoutData, MatchResults, TimeOverlap, Timeline,
+    UpdateAttendeeStatusRequest,
 };
-pub use ping::{CancelPingRequest, CreatePingRequest, Ping, PingState, TriggerMatchRequest};
+pub use ping::{CancelPingRequest, CreatePingRequest, Ping, PingLifecycle, TriggerMatchRequest};
 pub use response::{
     Availability, CreateResponseRequest, Response, ResponsePreferences, UpdateResponseRequest,
 };

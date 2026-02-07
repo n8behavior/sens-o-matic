@@ -9,8 +9,8 @@ use validator::Validate;
 
 use crate::matching::MatchingEngine;
 use crate::models::{
-    AppError, AppJson, CancelPingRequest, ConfirmHangoutRequest, CreatePingRequest, Hangout,
-    MatchResults, Ping, TriggerMatchRequest,
+    AppError, AppJson, CancelPingRequest, ConfirmHangoutRequest, CreatePingRequest, MatchResults,
+    Ping, TriggerMatchRequest, UpdateAttendeeStatusRequest,
 };
 use crate::state::AppState;
 use crate::state_machine::StateMachine;
@@ -137,15 +137,11 @@ pub async fn trigger_match(
 
     // Calculate match results
     let match_results = MatchingEngine::calculate_match(&ping);
-    let has_match = match_results.has_match;
 
-    // Store match results
-    state.match_results.insert(ping.id, match_results);
-
-    // Transition state
+    // Transition state with match results embedded
     let updated = state
         .pings
-        .update(&id, |p| StateMachine::transition_to_matching(p, has_match))
+        .update(&id, |p| StateMachine::transition_to_matching(p, match_results))
         .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
 
     Ok(Json(updated))
@@ -173,9 +169,12 @@ pub async fn get_match_results(
         .get(&id)
         .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
 
-    // Check if ping has been through matching
-    let results = state.match_results.get(&ping.id);
-    let match_results = MatchingEngine::get_or_calculate_match(&ping, results);
+    // Get match results from lifecycle or calculate them
+    let match_results = ping
+        .lifecycle
+        .match_results()
+        .cloned()
+        .unwrap_or_else(|| MatchingEngine::calculate_match(&ping));
 
     Ok(Json(match_results))
 }
@@ -188,7 +187,7 @@ pub async fn get_match_results(
     ),
     request_body = ConfirmHangoutRequest,
     responses(
-        (status = 201, description = "Hangout confirmed", body = Hangout),
+        (status = 201, description = "Hangout confirmed", body = Ping),
         (status = 400, description = "Invalid request data", body = crate::models::ApiError),
         (status = 404, description = "Ping not found", body = crate::models::ApiError),
         (status = 409, description = "Ping not in matching state", body = crate::models::ApiError)
@@ -207,15 +206,126 @@ pub async fn confirm_hangout(
 
     StateMachine::can_confirm(&ping)?;
 
-    // Create hangout
-    let hangout = StateMachine::create_hangout(&ping, request.timeline);
-    let hangout_id = hangout.id;
-    state.hangouts.insert(hangout.id, hangout.clone());
+    // Create hangout data
+    let hangout_data = StateMachine::create_hangout_data(&ping, request.timeline);
 
     // Transition ping state
-    state
+    let updated = state
         .pings
-        .update(&id, |p| StateMachine::transition_to_venue_confirmed(p, hangout_id));
+        .update(&id, |p| StateMachine::transition_to_venue_confirmed(p, hangout_data))
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(hangout)))
+    Ok((StatusCode::CREATED, Json(updated)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/pings/{id}/activate",
+    params(
+        ("id" = Uuid, Path, description = "Ping ID")
+    ),
+    responses(
+        (status = 200, description = "Ping activated (hangout started)", body = Ping),
+        (status = 404, description = "Ping not found", body = crate::models::ApiError),
+        (status = 409, description = "Ping not in venue_confirmed state", body = crate::models::ApiError)
+    ),
+    tag = "Pings"
+)]
+pub async fn activate_ping(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Ping>, AppError> {
+    let ping = state
+        .pings
+        .get(&id)
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+
+    StateMachine::can_activate(&ping)?;
+
+    let updated = state
+        .pings
+        .update(&id, StateMachine::transition_to_active)
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+
+    Ok(Json(updated))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/pings/{id}/complete",
+    params(
+        ("id" = Uuid, Path, description = "Ping ID")
+    ),
+    responses(
+        (status = 200, description = "Ping completed", body = Ping),
+        (status = 404, description = "Ping not found", body = crate::models::ApiError),
+        (status = 409, description = "Ping not in active_hangout state", body = crate::models::ApiError)
+    ),
+    tag = "Pings"
+)]
+pub async fn complete_ping(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Ping>, AppError> {
+    let ping = state
+        .pings
+        .get(&id)
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+
+    StateMachine::can_complete(&ping)?;
+
+    let updated = state
+        .pings
+        .update(&id, StateMachine::transition_to_complete)
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+
+    Ok(Json(updated))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/pings/{id}/attendees/{user_id}/status",
+    params(
+        ("id" = Uuid, Path, description = "Ping ID"),
+        ("user_id" = Uuid, Path, description = "User ID")
+    ),
+    request_body = UpdateAttendeeStatusRequest,
+    responses(
+        (status = 200, description = "Attendee status updated", body = Ping),
+        (status = 404, description = "Ping not found or user not an attendee", body = crate::models::ApiError),
+        (status = 409, description = "Ping not in active_hangout or venue_confirmed state", body = crate::models::ApiError)
+    ),
+    tag = "Pings"
+)]
+pub async fn update_attendee_status(
+    State(state): State<AppState>,
+    Path((ping_id, user_id)): Path<(Uuid, Uuid)>,
+    AppJson(request): AppJson<UpdateAttendeeStatusRequest>,
+) -> Result<Json<Ping>, AppError> {
+    let ping = state
+        .pings
+        .get(&ping_id)
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+
+    // Verify the ping has a hangout and the user is an attendee
+    let hangout = ping
+        .lifecycle
+        .hangout()
+        .ok_or_else(|| AppError::Conflict("Ping does not have an active hangout".to_string()))?;
+
+    if !hangout.is_attendee(user_id) {
+        return Err(AppError::NotFound("Attendee".to_string()));
+    }
+
+    let status = request.status;
+    let updated = state
+        .pings
+        .update(&ping_id, |p| {
+            if let Some(h) = p.lifecycle.hangout_mut() {
+                h.update_attendee_status(user_id, status);
+            }
+        })
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+
+    Ok(Json(updated))
 }

@@ -10,7 +10,7 @@ use validator::Validate;
 
 use crate::models::{
     AppError, AppJson, CreateGroupRequest, Group, JoinGroupRequest, LeaveGroupRequest, Ping,
-    PingState, RegenerateInviteRequest,
+    RegenerateInviteRequest,
 };
 use crate::state::AppState;
 
@@ -155,7 +155,7 @@ pub async fn regenerate_invite_code(
 
 #[derive(Debug, Deserialize)]
 pub struct ListPingsQuery {
-    pub state: Option<PingState>,
+    pub state: Option<String>,
 }
 
 #[utoipa::path(
@@ -163,7 +163,7 @@ pub struct ListPingsQuery {
     path = "/api/groups/{id}/pings",
     params(
         ("id" = Uuid, Path, description = "Group ID"),
-        ("state" = Option<PingState>, Query, description = "Filter by ping state")
+        ("state" = Option<String>, Query, description = "Filter by ping state")
     ),
     responses(
         (status = 200, description = "List of pings", body = Vec<Ping>),
@@ -182,8 +182,8 @@ pub async fn list_group_pings(
 
     let mut pings = state.get_group_pings(id);
 
-    if let Some(ping_state) = query.state {
-        pings.retain(|p| p.state == ping_state);
+    if let Some(filter_state) = query.state {
+        pings.retain(|p| p.lifecycle.state_name() == filter_state);
     }
 
     Ok(Json(pings))
