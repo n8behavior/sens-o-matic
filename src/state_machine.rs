@@ -87,12 +87,10 @@ impl StateMachine {
                     match_results,
                 };
             }
-        } else {
-            if let PingLifecycle::Gathering { responses } = &ping.lifecycle {
-                ping.lifecycle = PingLifecycle::NoMatch {
-                    responses: responses.clone(),
-                };
-            }
+        } else if let PingLifecycle::Gathering { responses } = &ping.lifecycle {
+            ping.lifecycle = PingLifecycle::NoMatch {
+                responses: responses.clone(),
+            };
         }
     }
 

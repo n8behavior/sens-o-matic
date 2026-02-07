@@ -2,6 +2,15 @@
 name = "sens-o-matic"
 version = "0.1.0"
 edition = "2024"
+description = "Backend API server for coordinating spontaneous group meetups"
+license = "MIT"
+authors = ["Mike Sandman <mike@thesandmans.com>"]
+repository = "https://github.com/n8behavior/sens-o-matic"
+readme = "README.md"
+rust-version = "1.85"
+keywords = ["meetup", "coordination", "api", "axum", "social"]
+categories = ["web-programming::http-server"]
+exclude = ["docs/", "tests/"]
 
 [dependencies]
 axum = "0.8.8"
