@@ -74,6 +74,10 @@ setup-hooks:
     chmod +x "$hook"
     echo "Installed pre-push hook: $hook"
 
+# Watch the latest CI run for the current branch
+ci:
+    gh run watch --exit-status "$(gh run list --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId')"
+
 # Build release binary (static musl)
 build-release:
     cargo build --release --target x86_64-unknown-linux-musl
