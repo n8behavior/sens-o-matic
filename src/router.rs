@@ -58,7 +58,11 @@ pub fn create_router(state: AppState) -> Router {
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         // Users
         .routes(routes!(users::create_user))
-        .routes(routes!(users::get_user, users::update_user, users::delete_user))
+        .routes(routes!(
+            users::get_user,
+            users::update_user,
+            users::delete_user
+        ))
         .routes(routes!(users::list_user_groups))
         // Groups
         .routes(routes!(groups::create_group))

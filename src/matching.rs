@@ -46,11 +46,7 @@ impl MatchingEngine {
         // Collect all availability windows
         let windows: Vec<(DateTime<Utc>, DateTime<Utc>)> = responses
             .iter()
-            .filter_map(|r| {
-                r.availability
-                    .as_ref()
-                    .map(|a| (a.earliest, a.latest))
-            })
+            .filter_map(|r| r.availability.as_ref().map(|a| (a.earliest, a.latest)))
             .collect();
 
         if windows.is_empty() {
@@ -103,9 +99,7 @@ mod tests {
             activity_type: "drinks".to_string(),
             rough_timing: "tonight".to_string(),
             vibe: None,
-            lifecycle: PingLifecycle::Gathering {
-                responses: vec![],
-            },
+            lifecycle: PingLifecycle::Gathering { responses: vec![] },
             created_at: Utc::now(),
         }
     }

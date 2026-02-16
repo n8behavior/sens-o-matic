@@ -1,10 +1,10 @@
 use axum::{
+    Json,
     extract::{FromRequest, Request},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]

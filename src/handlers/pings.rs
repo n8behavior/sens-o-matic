@@ -1,8 +1,8 @@
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use uuid::Uuid;
 use validator::Validate;
@@ -141,7 +141,9 @@ pub async fn trigger_match(
     // Transition state with match results embedded
     let updated = state
         .pings
-        .update(&id, |p| StateMachine::transition_to_matching(p, match_results))
+        .update(&id, |p| {
+            StateMachine::transition_to_matching(p, match_results)
+        })
         .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
 
     Ok(Json(updated))
@@ -212,7 +214,9 @@ pub async fn confirm_hangout(
     // Transition ping state
     let updated = state
         .pings
-        .update(&id, |p| StateMachine::transition_to_venue_confirmed(p, hangout_data))
+        .update(&id, |p| {
+            StateMachine::transition_to_venue_confirmed(p, hangout_data)
+        })
         .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
 
     Ok((StatusCode::CREATED, Json(updated)))

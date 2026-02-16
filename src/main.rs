@@ -4,7 +4,7 @@ use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use sens_o_matic::{create_router, AppState};
+use sens_o_matic::{AppState, create_router};
 
 #[tokio::main]
 async fn main() {
