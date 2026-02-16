@@ -19,7 +19,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: extractions/setup-just@v2
       - run: just validate-version ${{ github.event.release.tag_name }}
-      - run: just fmt-check
       - run: just check
 
   build-artifacts:

@@ -128,7 +128,9 @@ This project uses [just](https://github.com/casey/just) as a command runner. The
 locally and in CI.
 
 ```bash
-just check           # run clippy + tests
+just check           # run fmt-check + clippy + tests (same as CI)
+just fix             # auto-fix formatting and clippy warnings
+just setup-hooks     # install pre-push git hook
 just lint            # clippy only (warnings are errors)
 just test            # tests only
 just build           # build debug binary

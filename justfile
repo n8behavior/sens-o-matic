@@ -1,8 +1,8 @@
 # Default recipe: run checks
 default: check
 
-# Run all checks (clippy + tests)
-check: lint test
+# Run all checks (format + clippy + tests) — matches CI
+check: fmt-check lint test
 
 # Lint with clippy (warnings are errors)
 lint:
@@ -54,6 +54,25 @@ fmt-check:
 # Format code
 fmt:
     cargo fmt --all
+
+# Auto-fix formatting and clippy warnings
+fix:
+    cargo fmt --all
+    cargo clippy --fix --all-targets --allow-dirty --allow-staged
+
+# Install pre-push git hook that runs checks before pushing
+setup-hooks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    hook=".git/hooks/pre-push"
+    cat > "$hook" << 'HOOK'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Running pre-push checks..."
+    just check
+    HOOK
+    chmod +x "$hook"
+    echo "Installed pre-push hook: $hook"
 
 # Build release binary (static musl)
 build-release:
