@@ -20,7 +20,7 @@ cargo install sens-o-matic
 
 ## Building
 
-Requires Rust 1.85+ (edition 2024) and
+Requires Rust 1.93+ (edition 2024) and
 [just](https://github.com/casey/just).
 
 ```bash
