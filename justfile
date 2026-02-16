@@ -78,6 +78,30 @@ setup-hooks:
 ci:
     gh run watch --exit-status "$(gh run list --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId')"
 
+# Cut a release: run checks, tag, push, and create GitHub release
+release: check publish-dry-run
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+    TAG="v${VERSION}"
+
+    # Ensure tag doesn't already exist (version must be bumped)
+    if git rev-parse "$TAG" >/dev/null 2>&1; then
+      echo "Error: Tag $TAG already exists. Bump the version in Cargo.toml first."
+      exit 1
+    fi
+
+    # Ensure working tree is clean
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "Error: Working tree is dirty. Commit or stash changes first."
+      exit 1
+    fi
+
+    git tag -s "$TAG" -m "Release $TAG"
+    git push origin HEAD --tags
+    gh release create "$TAG" --verify-tag --generate-notes
+    echo "Released $TAG — GitHub Actions will handle the rest."
+
 # Build release binary (static musl)
 build-release:
     cargo build --release --target x86_64-unknown-linux-musl

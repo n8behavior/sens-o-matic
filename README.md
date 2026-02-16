@@ -20,10 +20,11 @@ cargo install sens-o-matic
 
 ## Building
 
-Requires Rust 1.85+ (edition 2024).
+Requires Rust 1.85+ (edition 2024) and
+[just](https://github.com/casey/just).
 
 ```bash
-cargo build
+just build
 ```
 
 ## Running
@@ -31,7 +32,7 @@ cargo build
 Start the server on port 3000:
 
 ```bash
-cargo run
+just run
 ```
 
 The API will be available at `http://localhost:3000`.
@@ -102,24 +103,14 @@ src/
 ├── state_machine.rs     # Ping lifecycle transitions
 ├── matching.rs          # Time overlap algorithm
 ├── models/              # Domain types
-│   ├── user.rs
-│   ├── group.rs
-│   ├── ping.rs
-│   ├── response.rs
-│   ├── hangout.rs
-│   └── error.rs
 └── handlers/            # API endpoints
-    ├── users.rs         # User management
-    ├── groups.rs        # Group management
-    ├── pings.rs         # Ping lifecycle
-    ├── responses.rs     # Ping responses
-    └── hangouts.rs      # Hangout management
 ```
 
 ## Documentation
 
-- [docs/SPEC.md](docs/SPEC.md) - Full application specification
-- [docs/api.yaml](docs/api.yaml) - OpenAPI specification (design reference)
+- [docs/SPEC.md](docs/SPEC.md) - Original application specification
+
+- [docs/api.yaml](docs/api.yaml) - Original OpenAPI specification (now [generated](#running))
 
 ## Development
 
@@ -132,6 +123,7 @@ just check           # run fmt-check + clippy + tests (same as CI)
 just fix             # auto-fix formatting and clippy warnings
 just setup-hooks     # install pre-push git hook
 just ci              # watch the latest CI run for the current branch
+just release         # cut a release (tag + push + gh release)
 just lint            # clippy only (warnings are errors)
 just test            # tests only
 just build           # build debug binary
@@ -152,26 +144,22 @@ publishes to crates.io, and uploads the binary tarball to the release.
 
 ### Release checklist
 
-1. Update the version in `Cargo.toml`
-2. Run checks and dry-run publish:
+1. Bump the version in `Cargo.toml` and commit:
+
    ```bash
-   just check
-   just publish-dry-run
-   ```
-3. Commit and tag:
-   ```bash
+   # edit Cargo.toml
    git add Cargo.toml Cargo.lock && git commit -m "Bump version to X.Y.Z"
-   git tag -s vX.Y.Z -m "Release vX.Y.Z"
    ```
-4. Push:
+
+2. Cut the release:
+
    ```bash
-   git push origin main --tags
+   just release
    ```
-5. Create the GitHub Release:
-   ```bash
-   gh release create vX.Y.Z --verify-tag --generate-notes
-   ```
-6. GitHub Actions handles the rest (build artifacts, publish to crates.io)
+
+   This runs checks, validates packaging, creates a signed `vX.Y.Z` tag, pushes,
+   and creates the GitHub Release. GitHub Actions handles the rest (build
+   artifacts, publish to crates.io).
 
 ### Manual publish
 
@@ -183,10 +171,10 @@ CARGO_REGISTRY_TOKEN=$(passage show cargo/registry-token) just publish
 
 ### Token management
 
-| Location | Purpose |
-|----------|---------|
-| `passage` (local) | Encrypted token for manual publishing |
-| GitHub secret `CARGO_REGISTRY_TOKEN` | Token used by CI release workflow |
+| Location                             | Purpose                               |
+| ------------------------------------ | ------------------------------------- |
+| `passage` (local)                    | Encrypted token for manual publishing |
+| GitHub secret `CARGO_REGISTRY_TOKEN` | Token used by CI release workflow     |
 
 To rotate the crates.io API token:
 
