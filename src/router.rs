@@ -83,5 +83,11 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state)
         .split_for_parts();
 
-    router.merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
+    router
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
+        .route("/health", axum::routing::get(health))
+}
+
+async fn health() -> &'static str {
+    "ok"
 }

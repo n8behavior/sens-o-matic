@@ -55,17 +55,30 @@ http://localhost:3000/api-docs/openapi.json
 ### Unit Tests
 
 ```bash
-cargo test
+just test
 ```
 
 ### API Tests (Hurl)
 
 The project includes comprehensive API tests using [Hurl](https://hurl.dev/).
 
-Run all tests:
+Run all API tests (builds, starts the server, runs tests, stops the server):
 
 ```bash
-hurl --test --variables-file tests/hurl/config/local.env tests/hurl/**/*.hurl
+just test-api
+```
+
+If you already have a server running, you can run the tests directly:
+
+```bash
+just hurl-test
+```
+
+Run a specific test suite (requires running server):
+
+```bash
+just hurl entities
+just hurl flows
 ```
 
 Test categories:
@@ -108,29 +121,75 @@ src/
 - [docs/SPEC.md](docs/SPEC.md) - Full application specification
 - [docs/api.yaml](docs/api.yaml) - OpenAPI specification (design reference)
 
-## Publishing
+## Development
 
-To publish a new version to crates.io:
+This project uses [just](https://github.com/casey/just) as a command runner. The
+`justfile` is the single source of truth for build logic — the same recipes run
+locally and in CI.
+
+```bash
+just check           # run clippy + tests
+just lint            # clippy only (warnings are errors)
+just test            # tests only
+just build           # build debug binary
+just run             # start the server on port 3000
+just test-api        # build, start server, run hurl tests, stop server
+just hurl-test       # run all hurl API tests (requires running server)
+just hurl entities   # run a specific hurl test suite
+just fmt             # format code
+just fmt-check       # check formatting without changing files
+just publish-dry-run # validate crate packaging
+```
+
+## Releasing
+
+Releases are automated via GitHub Actions. When a GitHub Release is published,
+the workflow validates the tag, runs checks, builds a static musl binary,
+publishes to crates.io, and uploads the binary tarball to the release.
+
+### Release checklist
 
 1. Update the version in `Cargo.toml`
-2. Ensure all checks pass:
+2. Run checks and dry-run publish:
    ```bash
-   cargo clippy -- -D warnings
-   cargo test
-   cargo publish --dry-run
+   just check
+   just publish-dry-run
    ```
-3. Commit, tag, and push:
+3. Commit and tag:
    ```bash
-   git commit -am "Release vX.Y.Z"
-   git tag vX.Y.Z
+   git add Cargo.toml Cargo.lock && git commit -m "Bump version to X.Y.Z"
+   git tag -s vX.Y.Z -m "Release vX.Y.Z"
+   ```
+4. Push:
+   ```bash
    git push origin main --tags
    ```
-4. Publish:
+5. Create the GitHub Release:
    ```bash
-   CARGO_REGISTRY_TOKEN=$(passage show cargo/registry-token) cargo publish
+   gh release create vX.Y.Z --verify-tag --generate-notes
    ```
+6. GitHub Actions handles the rest (build artifacts, publish to crates.io)
 
-The API token is stored encrypted in [passage](https://github.com/FiloSottile/passage) and only decrypted in memory at publish time. No plaintext tokens are written to disk.
+### Manual publish
+
+If you need to publish outside the automated workflow:
+
+```bash
+CARGO_REGISTRY_TOKEN=$(passage show cargo/registry-token) just publish
+```
+
+### Token management
+
+| Location | Purpose |
+|----------|---------|
+| `passage` (local) | Encrypted token for manual publishing |
+| GitHub secret `CARGO_REGISTRY_TOKEN` | Token used by CI release workflow |
+
+To rotate the crates.io API token:
+
+1. Generate a new token at [crates.io](https://crates.io/settings/tokens)
+2. `passage edit cargo/registry-token`
+3. `gh secret set CARGO_REGISTRY_TOKEN --body "$(passage show cargo/registry-token)"`
 
 ## License
 

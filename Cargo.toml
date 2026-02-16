@@ -10,7 +10,7 @@ readme = "README.md"
 rust-version = "1.85"
 keywords = ["meetup", "coordination", "api", "axum", "social"]
 categories = ["web-programming::http-server"]
-exclude = ["docs/", "tests/"]
+exclude = ["docs/", "tests/", "justfile"]
 
 [dependencies]
 axum = "0.8.8"
