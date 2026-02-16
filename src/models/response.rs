@@ -66,14 +66,13 @@ pub struct UpdateResponseRequest {
 
 impl CreateResponseRequest {
     pub fn validate_preferences(&self) -> Result<(), AppError> {
-        if let Some(ref prefs) = self.preferences {
-            if let Some(distance) = prefs.max_distance {
-                if distance < 0.0 {
-                    return Err(AppError::BadRequest(
-                        "max_distance must be non-negative".to_string(),
-                    ));
-                }
-            }
+        if let Some(ref prefs) = self.preferences
+            && let Some(distance) = prefs.max_distance
+            && distance < 0.0
+        {
+            return Err(AppError::BadRequest(
+                "max_distance must be non-negative".to_string(),
+            ));
         }
         if let Some(ref availability) = self.availability {
             availability.validate_times()?;
