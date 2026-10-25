@@ -3,7 +3,9 @@ name: Session image
 # The session image of this repository. A change of its folder, of its
 # pin or of this workflow builds the image of the folder, when the
 # registry does not have it yet. Then the job prints the versions of the
-# tools of the image and checks that riff.toml pins it.
+# tools of the image and checks that riff.toml pins it. When riff.toml
+# sets RUSTC_WRAPPER = "sccache", the job also checks that the image has
+# sccache.
 on:
   push:
     branches: [main]
@@ -87,11 +89,21 @@ jobs:
       # The log shows what the image has. This step comes before the
       # check of the pin, so the log has the versions also when the pin
       # is wrong.
+      #
+      # RUSTC_WRAPPER = "sccache" in riff.toml breaks each cargo call of a
+      # session whose image has no sccache. The runner reads riff.toml,
+      # outside the container, and asks for sccache only when the file
+      # sets that wrapper. The check comes last, so the log has the other
+      # versions also when sccache is missing.
       - name: Print the versions of the tools of the image
         env:
           DIGEST: ${{ steps.found.outputs.digest || steps.build.outputs.digest }}
         run: |
-          docker run --rm "$IMAGE@$DIGEST" bash -c '
+          want_sccache=
+          if grep -Eq '^[[:space:]]*RUSTC_WRAPPER[[:space:]]*=[[:space:]]*"sccache"' riff.toml; then
+            want_sccache=1
+          fi
+          docker run --rm -e WANT_SCCACHE="$want_sccache" "$IMAGE@$DIGEST" bash -c '
             set -eu
             rustc --version
             cargo clippy --version
@@ -103,6 +115,12 @@ jobs:
             git --version
             gh --version
             claude --version
+            if [ -n "$WANT_SCCACHE" ]; then
+              sccache --version || {
+                echo "::error file=riff.toml::riff.toml sets RUSTC_WRAPPER = \"sccache\", and the image has no sccache: each cargo call of a session fails. Add sccache to deploy/session/, or remove RUSTC_WRAPPER from the [session.env] table of riff.toml."
+                exit 1
+              }
+            fi
           '
 
       - name: Check the pin in riff.toml
