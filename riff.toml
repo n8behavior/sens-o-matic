@@ -1,2 +1,28 @@
+# The session of riff: its image and the package sources that the auto
+# mode of a session trusts. The workflow "Session image" checks the
+# image pin. The riff book explains the sources in "Trust a package
+# source" (how-it-works.md).
 [session]
 image = "ghcr.io/n8behavior/sens-o-matic-session@sha256:9c5b31716e52416e227753bc4d6e63ae9456a709b0c82f8f27077778510b5968"
+sources = ["crates.io", "index.crates.io", "static.crates.io"]
+
+# The env of a session: the cargo home and the sccache of the cargo
+# volume below. The riff book explains where the env comes from in
+# "Where the env of a session comes from" (how-it-works.md) and how to
+# set it in "Set the env and the volumes of a session" (development.md).
+# riff expands $HOME. The workflow "Session image" fails when the image
+# has no sccache and RUSTC_WRAPPER is "sccache".
+[session.env]
+CARGO_HOME = "$HOME/.cargo"
+SCCACHE_DIR = "$HOME/.cache/sccache"
+SCCACHE_CACHE_SIZE = "40G"
+RUSTC_WRAPPER = "sccache"
+SCCACHE_IDLE_TIMEOUT = "0"
+SCCACHE_IGNORE_SERVER_IO_ERROR = "1"
+
+# The volumes of a session: a named volume for the crates and one for
+# the sccache cache, each kept between sessions. The riff book explains
+# them in "Set the env and the volumes of a session" (development.md).
+[session.volumes]
+riff-cargo = "$HOME/.cargo"
+riff-sccache = "$HOME/.cache/sccache"
