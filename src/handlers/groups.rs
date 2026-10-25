@@ -15,20 +15,35 @@ use serde::Deserialize;
 
 use crate::models::{
     AnyPing, AppError, AppJson, CreateGroupRequest, Group, GroupId, JoinGroupRequest,
-    LeaveGroupRequest, PingState, RegenerateInviteRequest,
+    LeaveGroupRequest, PingState, RegenerateInviteRequest, UserId,
 };
 use crate::state::AppState;
 
+/// Refuses a user id that is not a user.
+///
+/// # Errors
+///
+/// Returns [`AppError::NotFound`] for `User`, the same answer as the endpoints of
+/// [`super::users`] give for an unknown user.
+fn require_user(state: &AppState, user: UserId) -> Result<(), AppError> {
+    if state.users.exists(&user) {
+        Ok(())
+    } else {
+        Err(AppError::NotFound("User".to_string()))
+    }
+}
+
 /// Creates a group, with the creator as its only member and a new invite code.
 ///
-/// The server does not check that the creator is a user that exists.
+/// The creator must be a user that exists.
 #[utoipa::path(
     post,
     path = "/api/groups",
     request_body = CreateGroupRequest,
     responses(
         (status = 201, description = "Group created successfully", body = Group),
-        (status = 400, description = "Invalid request data", body = crate::models::ApiError)
+        (status = 400, description = "Invalid request data", body = crate::models::ApiError),
+        (status = 404, description = "User not found", body = crate::models::ApiError)
     ),
     tag = "Groups"
 )]
@@ -36,6 +51,8 @@ pub async fn create_group(
     State(state): State<AppState>,
     AppJson(request): AppJson<CreateGroupRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_user(&state, request.creator_id)?;
+
     let group = Group::new(request);
     state.groups.insert(group.id, group.clone());
 
@@ -69,7 +86,7 @@ pub async fn get_group(
 /// Adds a user to the group that has the given invite code.
 ///
 /// The code is looked up as it is written, so the case matters. Joining a group that the
-/// user is in already is harmless. The server does not check that the user exists.
+/// user is in already is harmless. The user must be a user that exists.
 #[utoipa::path(
     post,
     path = "/api/groups/join",
@@ -77,7 +94,7 @@ pub async fn get_group(
     responses(
         (status = 200, description = "Successfully joined group", body = Group),
         (status = 400, description = "Invalid request data", body = crate::models::ApiError),
-        (status = 404, description = "Invalid invite code", body = crate::models::ApiError)
+        (status = 404, description = "Invalid invite code, or user not found", body = crate::models::ApiError)
     ),
     tag = "Groups"
 )]
@@ -88,6 +105,7 @@ pub async fn join_group(
     let group = state
         .find_group_by_invite_code(&request.invite_code)
         .ok_or_else(|| AppError::NotFound("Group".to_string()))?;
+    require_user(&state, request.user_id)?;
 
     let updated = state
         .groups
@@ -102,8 +120,10 @@ pub async fn join_group(
 
 /// Removes a user from a group.
 ///
-/// It succeeds also when the user is not a member. The pings and the answers of the
-/// user stay as they are. Nothing stops the last member from leaving.
+/// It succeeds also when the user is not a member, and the user does not have to
+/// exist: leaving only removes a member, so it cannot store a reference to a user
+/// that does not exist. The pings and the answers of the user stay as they are.
+/// Nothing stops the last member from leaving.
 #[utoipa::path(
     post,
     path = "/api/groups/{id}/leave",

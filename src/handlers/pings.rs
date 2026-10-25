@@ -176,9 +176,8 @@ pub async fn trigger_match(
         ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     responses(
-        (status = 200, description = "Match results", body = MatchResults),
-        (status = 404, description = "Ping not found", body = crate::models::ApiError),
-        (status = 409, description = "Ping not in matching or later state", body = crate::models::ApiError)
+        (status = 200, description = "Match results: in the state `matching` the stored results; in any other state they are worked out from the current answers (a preview) and the ping does not change", body = MatchResults),
+        (status = 404, description = "Ping not found", body = crate::models::ApiError)
     ),
     tag = "Pings"
 )]
@@ -202,10 +201,14 @@ pub async fn get_match_results(
 
 /// Confirms the hangout of a ping that has a match.
 ///
-/// The ping must be in the `matching` state. It moves to `venue_confirmed`. The
-/// attendees are all the members who said yes, each one `pending`, and the timeline
-/// is stored as it is sent: the server does not compare it with the common window
-/// and does not check who confirms.
+/// Only the initiator can, and only in the `matching` state. The timeline must end
+/// after it starts, and lie inside the common window that the matching found (the
+/// `overlap` of the match results); it may start when the window starts and end when
+/// it ends. The ping moves to `venue_confirmed`. The attendees are all the members
+/// who said yes, each one `pending`.
+///
+/// The checks are made in this order: who confirms (`403`), the state (`409`), the
+/// timeline (`400`). A refusal changes nothing.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/confirm",
@@ -215,7 +218,8 @@ pub async fn get_match_results(
     request_body = ConfirmHangoutRequest,
     responses(
         (status = 201, description = "Hangout confirmed", body = AnyPing),
-        (status = 400, description = "Invalid request data", body = crate::models::ApiError),
+        (status = 400, description = "Invalid request data, or the timeline is not inside the common window (the message shows the window)", body = crate::models::ApiError),
+        (status = 403, description = "Only initiator can confirm", body = crate::models::ApiError),
         (status = 404, description = "Ping not found", body = crate::models::ApiError),
         (status = 409, description = "Ping not in matching state", body = crate::models::ApiError)
     ),
@@ -226,7 +230,9 @@ pub async fn confirm_hangout(
     Path(id): Path<PingId>,
     AppJson(request): AppJson<ConfirmHangoutRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let updated = transition(&state, id, |ping| ping.confirm(request.timeline))?;
+    let updated = transition(&state, id, |ping| {
+        ping.confirm(request.user_id, request.timeline)
+    })?;
 
     Ok((StatusCode::CREATED, Json(updated)))
 }
@@ -289,7 +295,7 @@ pub async fn complete_ping(
     responses(
         (status = 200, description = "Attendee status updated", body = AnyPing),
         (status = 404, description = "Ping not found or user not an attendee", body = crate::models::ApiError),
-        (status = 409, description = "Ping not in active_hangout or venue_confirmed state", body = crate::models::ApiError)
+        (status = 409, description = "Ping has no hangout", body = crate::models::ApiError)
     ),
     tag = "Pings"
 )]

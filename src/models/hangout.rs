@@ -351,12 +351,11 @@ impl TryFrom<HangoutDataWire> for HangoutData {
 /// The body of the request that confirms a match as a hangout.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ConfirmHangoutRequest {
-    /// The user who confirms. The server does not check it against the
-    /// initiator of the ping.
+    /// The user who confirms; must be the initiator of the ping.
     #[schema(value_type = String, format = "uuid")]
     pub user_id: UserId,
-    /// When the hangout takes place. The server stores it as it is: it does not
-    /// compare it with the overlap that the matching found.
+    /// When the hangout takes place. It must lie inside the common window that
+    /// the matching found (`overlap` of the match results).
     pub timeline: Timeline,
 }
 
@@ -444,6 +443,27 @@ impl TimeOverlap {
     /// How many members the window holds.
     pub fn attendee_count(&self) -> u32 {
         self.attendee_count
+    }
+
+    /// Tells whether the timeline lies inside the common window. A timeline that
+    /// starts when the window starts, or ends when it ends, is inside.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chrono::{TimeZone, Utc};
+    /// use sens_o_matic::models::{TimeOverlap, Timeline, value::TimeWindow};
+    ///
+    /// let at = |hour| Utc.with_ymd_and_hms(2024, 12, 15, hour, 0, 0).unwrap();
+    /// let overlap = TimeOverlap::new(TimeWindow::new(at(18), at(21)).unwrap(), 2);
+    ///
+    /// assert!(overlap.contains(Timeline::new(at(19), at(20)).unwrap()));
+    /// assert!(overlap.contains(Timeline::new(at(18), at(21)).unwrap()));
+    /// assert!(!overlap.contains(Timeline::new(at(17), at(20)).unwrap()));
+    /// assert!(!overlap.contains(Timeline::new(at(19), at(22)).unwrap()));
+    /// ```
+    pub fn contains(&self, timeline: Timeline) -> bool {
+        self.start <= timeline.start() && timeline.end() <= self.end
     }
 }
 
@@ -748,7 +768,7 @@ mod tests {
         }) else {
             panic!("the results have an overlap");
         };
-        let ping = AnyPing::from(ping.confirm(timeline()));
+        let ping = AnyPing::from(ping.confirm(timeline()).unwrap());
 
         let json = serde_json::to_value(&ping).unwrap();
         assert_eq!(json["state"], "venue_confirmed");

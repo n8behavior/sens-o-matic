@@ -141,7 +141,7 @@
 //! assert!(ping.match_results().has_match());
 //!
 //! // VenueConfirmed: the initiator confirms the hangout for the common window.
-//! let ping = ping.confirm(Timeline::new(at(18), at(21))?);
+//! let ping = ping.confirm(Timeline::new(at(18), at(21))?)?;
 //!
 //! // ActiveHangout, then Complete.
 //! let ping = ping.activate();
@@ -163,7 +163,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use super::error::AppError;
-use super::hangout::{AttendeeStatus, HangoutData, MatchResults, NotAnAttendee, Timeline};
+use super::hangout::{
+    AttendeeStatus, HangoutData, MatchResults, NotAnAttendee, TimeOverlap, Timeline,
+};
 use super::response::{Response, UpdateResponseRequest};
 use super::value::{ActivityType, RoughTiming, Vibe};
 use super::{GroupId, PingId, ResponseId, UserId};
@@ -685,9 +687,44 @@ pub enum UpdateResponseError {
     },
 }
 
+/// The timeline of a confirmation is not inside the common window that the
+/// matching found. See [`Ping::confirm`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum TimelineRefused {
+    /// The timeline starts before the common window, or ends after it.
+    #[error(
+        "the timeline from {} to {} is not inside the common window from {} to {} that the \
+         matching found; the hangout must start and end inside it. See sens_o_matic::models::ping",
+        .timeline.start().to_rfc3339(),
+        .timeline.end().to_rfc3339(),
+        .window.start().to_rfc3339(),
+        .window.end().to_rfc3339()
+    )]
+    OutsideWindow {
+        /// The timeline that was sent.
+        timeline: Timeline,
+        /// The common window that the matching found.
+        window: TimeOverlap,
+    },
+    /// The results of the matching have no common window, so no timeline lies
+    /// inside it. A ping that the matching moved to `Matching` always has one;
+    /// only a ping that was read from a body can lack it.
+    #[error(
+        "the matching stored no common window, so no timeline lies inside it. \
+         See sens_o_matic::models::ping"
+    )]
+    NoWindow,
+}
+
 impl From<AlreadyResponded> for AppError {
     fn from(error: AlreadyResponded) -> Self {
         AppError::Conflict(error.to_string())
+    }
+}
+
+impl From<TimelineRefused> for AppError {
+    fn from(error: TimelineRefused) -> Self {
+        AppError::BadRequest(error.to_string())
     }
 }
 
@@ -843,6 +880,60 @@ impl Ping<Matching> {
     /// [`crate::matching`] ignored it when it looked for a common time. The
     /// initiator is an attendee only if they answered their own ping.
     ///
+    /// The timeline must lie inside the common window that the matching found
+    /// ([`MatchResults::overlap`]); it may start when the window starts and end
+    /// when it ends. The ping is taken, as in every transition, so a refusal
+    /// gives the ping up; [`AnyPing::confirm`] works on a copy, so the stored
+    /// ping stays as it is.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TimelineRefused`] when the timeline is not inside the window.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chrono::{TimeZone, Utc};
+    /// use sens_o_matic::matching::MatchingEngine;
+    /// use sens_o_matic::models::{
+    ///     Availability, CreatePingRequest, CreateResponseRequest, GroupId, MatchOutcome, Ping,
+    ///     Response, Timeline, TimelineRefused, UserId,
+    /// };
+    ///
+    /// let at = |hour| Utc.with_ymd_and_hms(2024, 12, 15, hour, 0, 0).unwrap();
+    /// let matching = || {
+    ///     let ping = Ping::new(CreatePingRequest {
+    ///         initiator: UserId::random(),
+    ///         group: GroupId::random(),
+    ///         activity_type: "drinks".parse().unwrap(),
+    ///         rough_timing: "tonight".parse().unwrap(),
+    ///         vibe: None,
+    ///     })
+    ///     .respond(Response::new(CreateResponseRequest {
+    ///         user: UserId::random(),
+    ///         answer: true,
+    ///         availability: Some(Availability::new(at(18), at(21)).unwrap()),
+    ///         preferences: None,
+    ///     }));
+    ///     match ping.match_responses(MatchingEngine::calculate_match) {
+    ///         MatchOutcome::Matching(ping) => ping,
+    ///         MatchOutcome::NoMatch(_) => unreachable!("the only answer has a time"),
+    ///     }
+    /// };
+    ///
+    /// // The common window is 18:00 to 21:00.
+    /// assert!(matching().confirm(Timeline::new(at(19), at(20)).unwrap()).is_ok());
+    /// assert!(matching().confirm(Timeline::new(at(18), at(21)).unwrap()).is_ok());
+    ///
+    /// let outside = Timeline::new(at(17), at(20)).unwrap();
+    /// let Err(TimelineRefused::OutsideWindow { timeline, window }) = matching().confirm(outside)
+    /// else {
+    ///     panic!("17:00 is before the window");
+    /// };
+    /// assert_eq!(timeline, outside);
+    /// assert_eq!((window.start(), window.end()), (at(18), at(21)));
+    /// ```
+    ///
     /// Only a ping in [`Matching`] has this method; a ping that is still
     /// gathering cannot be confirmed:
     ///
@@ -861,13 +952,21 @@ impl Ping<Matching> {
     ///     let _ = ping.confirm(timeline);
     /// }
     /// ```
-    pub fn confirm(self, timeline: Timeline) -> Ping<VenueConfirmed> {
+    pub fn confirm(self, timeline: Timeline) -> Result<Ping<VenueConfirmed>, TimelineRefused> {
+        let window = self
+            .state
+            .match_results
+            .overlap
+            .ok_or(TimelineRefused::NoWindow)?;
+        if !window.contains(timeline) {
+            return Err(TimelineRefused::OutsideWindow { timeline, window });
+        }
         let attendees = self.positive_responses().iter().map(|r| r.user).collect();
         let (ping, Matching { responses, .. }) = self.take_state();
-        ping.with_state(VenueConfirmed {
+        Ok(ping.with_state(VenueConfirmed {
             responses,
             hangout: HangoutData::new(attendees, timeline),
-        })
+        }))
     }
 }
 
@@ -1299,17 +1398,21 @@ impl AnyPing {
         Ok(())
     }
 
-    /// Confirms the hangout, in `Matching`; see [`Ping::confirm`]. It does not
-    /// check who confirms.
+    /// Confirms the hangout, in `Matching`, as `user`; see [`Ping::confirm`].
     ///
     /// # Errors
     ///
-    /// Returns [`AppError::Conflict`] in any other state.
-    pub fn confirm(&mut self, timeline: Timeline) -> Result<(), AppError> {
+    /// Returns [`AppError::Forbidden`] when `user` is not the initiator,
+    /// [`AppError::Conflict`] when the ping is not in `Matching`, and
+    /// [`AppError::BadRequest`] when the timeline is not inside the common window
+    /// that the matching found. The checks are in this order, and a refusal
+    /// changes nothing.
+    pub fn confirm(&mut self, user: UserId, timeline: Timeline) -> Result<(), AppError> {
+        self.require_initiator(user, "Only initiator can confirm hangout")?;
         let AnyPing::Matching(ping) = self else {
             return Err(self.refuse(Action::Confirm));
         };
-        *self = AnyPing::VenueConfirmed(ping.clone().confirm(timeline));
+        *self = AnyPing::VenueConfirmed(ping.clone().confirm(timeline)?);
         Ok(())
     }
 
@@ -1674,13 +1777,18 @@ mod tests {
             MatchOutcome::Matching(ping) => ping,
             MatchOutcome::NoMatch(_) => unreachable!("`found` finds a window"),
         };
+        let confirmed = || {
+            matching()
+                .confirm(timeline())
+                .expect("the timeline is the window that `found` finds")
+        };
         match state {
             PingState::PingSent => new_ping(initiator).into(),
             PingState::Gathering => gathering().into(),
             PingState::Matching => matching().into(),
-            PingState::VenueConfirmed => matching().confirm(timeline()).into(),
-            PingState::ActiveHangout => matching().confirm(timeline()).activate().into(),
-            PingState::Complete => matching().confirm(timeline()).activate().complete().into(),
+            PingState::VenueConfirmed => confirmed().into(),
+            PingState::ActiveHangout => confirmed().activate().into(),
+            PingState::Complete => confirmed().activate().complete().into(),
             PingState::Cancelled => gathering().cancel().into(),
             PingState::NoMatch => match gathering().match_responses(missed) {
                 MatchOutcome::NoMatch(ping) => ping.into(),
@@ -1724,7 +1832,7 @@ mod tests {
                     .map(|_| ())
             }
             Action::TriggerMatch => ping.trigger_match(initiator, found),
-            Action::Confirm => ping.confirm(timeline()),
+            Action::Confirm => ping.confirm(initiator, timeline()),
             Action::Activate => ping.activate(),
             Action::Complete => ping.complete(),
             Action::Cancel => ping.cancel(initiator),
@@ -1795,6 +1903,108 @@ mod tests {
             ping.trigger_match(UserId::random(), found),
             Err(AppError::Forbidden(_))
         ));
+        assert!(matches!(
+            ping.confirm(UserId::random(), timeline()),
+            Err(AppError::Forbidden(_))
+        ));
+    }
+
+    /// Only the initiator confirms, and the ping is as it was after the refusal.
+    #[test]
+    fn only_the_initiator_confirms() {
+        let initiator = UserId::random();
+        let mut ping = ping_in(PingState::Matching, initiator, UserId::random());
+
+        let Err(AppError::Forbidden(message)) = ping.confirm(UserId::random(), timeline()) else {
+            panic!("a stranger cannot confirm");
+        };
+        assert_eq!(message, "Only initiator can confirm hangout");
+        assert_eq!(ping.state(), PingState::Matching);
+
+        ping.confirm(initiator, timeline()).unwrap();
+        assert_eq!(ping.state(), PingState::VenueConfirmed);
+    }
+
+    /// The common window of `found` is 18:00 to 21:00. A timeline inside it is
+    /// confirmed, one that starts or ends outside it is refused with a `400` that
+    /// shows the window, and the ping stays in `Matching`.
+    #[test]
+    fn the_timeline_lies_inside_the_common_window() {
+        let initiator = UserId::random();
+        for (start, end, inside) in [
+            (18, 21, true),
+            (19, 20, true),
+            (17, 20, false),
+            (19, 22, false),
+            (16, 17, false),
+            (22, 23, false),
+            (17, 22, false),
+        ] {
+            let mut ping = ping_in(PingState::Matching, initiator, UserId::random());
+            let timeline = Timeline::new(at(start), at(end)).unwrap();
+
+            let result = ping.confirm(initiator, timeline);
+
+            if inside {
+                result.unwrap_or_else(|e| panic!("{start}:00 to {end}:00 is inside: {e:?}"));
+                assert_eq!(ping.state(), PingState::VenueConfirmed);
+            } else {
+                let Err(AppError::BadRequest(message)) = result else {
+                    panic!("{start}:00 to {end}:00 is outside: {result:?}");
+                };
+                assert!(
+                    message.contains("2024-12-15T18:00:00+00:00")
+                        && message.contains("2024-12-15T21:00:00+00:00"),
+                    "the message shows the window: {message}"
+                );
+                assert_eq!(ping.state(), PingState::Matching, "{start} to {end}");
+            }
+        }
+    }
+
+    /// The order of the refusals is the order of the issue: who, then the
+    /// state, then the timeline.
+    #[test]
+    fn confirm_checks_who_then_the_state_then_the_timeline() {
+        let initiator = UserId::random();
+        let outside = Timeline::new(at(10), at(11)).unwrap();
+
+        let mut gathering = ping_in(PingState::Gathering, initiator, UserId::random());
+        assert!(matches!(
+            gathering.confirm(UserId::random(), outside),
+            Err(AppError::Forbidden(_))
+        ));
+        assert!(matches!(
+            gathering.confirm(initiator, outside),
+            Err(AppError::Conflict(_))
+        ));
+
+        let mut matching = ping_in(PingState::Matching, initiator, UserId::random());
+        assert!(matches!(
+            matching.confirm(initiator, outside),
+            Err(AppError::BadRequest(_))
+        ));
+    }
+
+    /// A `Matching` ping that was read from a body can have results without a
+    /// window; no timeline is inside nothing.
+    #[test]
+    fn a_matching_without_a_window_confirms_nothing() {
+        let initiator = UserId::random();
+        let ping = ping_in(PingState::Matching, initiator, UserId::random());
+        let mut json = serde_json::to_value(&ping).unwrap();
+        json["match_results"] = json!({
+            "ping_id": ping.id(),
+            "overlap": null,
+            "has_match": false,
+        });
+        let mut ping: AnyPing = serde_json::from_value(json).unwrap();
+
+        assert!(matches!(
+            ping.confirm(initiator, timeline()),
+            Err(AppError::BadRequest(_))
+        ));
+        assert_eq!(ping.state(), PingState::Matching);
     }
 
     /// A ping that nobody has answered is in `PingSent`, which the matching
@@ -1926,7 +2136,7 @@ mod tests {
             panic!("`found` finds a window");
         };
 
-        let ping = ping.confirm(timeline());
+        let ping = ping.confirm(timeline()).unwrap();
 
         let attendees = &ping.hangout().attendees;
         assert!(attendees.contains(yes));
