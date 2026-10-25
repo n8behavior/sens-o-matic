@@ -9,5 +9,7 @@ The [specification](specification.md) is the full description of the
 application.
 
 This book holds the high-level documentation and the usage. The technical
-detail is in the docs of the code: run `cargo doc --open` for the module docs
-and the function docs.
+detail is in the docs of the code: the
+[Rust docs of the crate](rustdoc/sens_o_matic/index.html) have the module docs
+and the function docs. [Read the docs](development.md#read-the-docs) says how
+to open the book, the Rust docs and Swagger UI together.
