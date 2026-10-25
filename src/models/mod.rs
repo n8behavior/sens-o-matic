@@ -2,6 +2,7 @@
 //!
 //! | Module | Entities | Concept |
 //! |---|---|---|
+//! | [`id`] | [`Id`], [`UserId`], [`GroupId`], [`PingId`], [`ResponseId`] | The id of an entity, one type for each kind |
 //! | [`user`] | [`User`] | A person, with optional preferences |
 //! | [`group`] | [`Group`] | The people a ping is sent to, joined by invite code |
 //! | [`ping`] | [`Ping`], [`PingLifecycle`] | One request to meet, and the state it is in |
@@ -13,10 +14,11 @@
 //!
 //! - An entity is created from a `Create…Request` (`Entity::new`) and changed
 //!   by an `Update…Request` (`Entity::update`). The server assigns every `id`
-//!   (a random UUID v4); a client never chooses one.
-//! - Entities refer to each other by id, never by nesting. Whether an id
-//!   refers to an entity that exists is checked by the handler that uses it,
-//!   not by the model.
+//!   (see [`id`]); a client never chooses one.
+//! - Entities refer to each other by id, never by nesting, and an id has the
+//!   type of the entity it names, so a [`GroupId`] cannot stand where a
+//!   [`UserId`] is expected. Whether an id refers to an entity that exists is
+//!   checked by the handler that uses it, not by the model.
 //! - Every timestamp is UTC and is written in RFC 3339 (`2024-12-15T18:00:00Z`).
 //! - The types derive [`utoipa::ToSchema`], so their doc comments are also the
 //!   descriptions in the OpenAPI document (see [`crate::router`]).
@@ -39,6 +41,7 @@
 pub mod error;
 pub mod group;
 pub mod hangout;
+pub mod id;
 pub mod ping;
 pub mod response;
 pub mod user;
@@ -51,6 +54,7 @@ pub use hangout::{
     AttendeeStatus, ConfirmHangoutRequest, HangoutData, MatchResults, TimeOverlap, Timeline,
     UpdateAttendeeStatusRequest,
 };
+pub use id::{GroupId, Id, PingId, ResponseId, UserId};
 pub use ping::{CancelPingRequest, CreatePingRequest, Ping, PingLifecycle, TriggerMatchRequest};
 pub use response::{
     Availability, CreateResponseRequest, Response, ResponsePreferences, UpdateResponseRequest,

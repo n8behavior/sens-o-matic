@@ -45,11 +45,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 use validator::Validate;
 
 use super::hangout::{HangoutData, MatchResults};
 use super::response::Response;
+use super::{GroupId, PingId, ResponseId, UserId};
 
 /// The stage of a ping, and the data that belongs to the stage.
 ///
@@ -274,12 +274,15 @@ impl PingLifecycle {
 pub struct Ping {
     /// Assigned by the server when the ping is created. It is also the id of
     /// the hangout, if the ping gets that far.
-    pub id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub id: PingId,
     /// The member who sent the ping. Only they can trigger the matching and
     /// cancel the ping.
-    pub initiator: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub initiator: UserId,
     /// The group the ping was sent to; only its members can answer.
-    pub group: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub group: GroupId,
     /// What to do, in the words of the initiator ("drinks", "dinner"), 1 to 50
     /// characters.
     pub activity_type: String,
@@ -300,9 +303,11 @@ pub struct Ping {
 #[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
 pub struct CreatePingRequest {
     /// The member who sends the ping; must be a member of `group`.
-    pub initiator: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub initiator: UserId,
     /// The group to send the ping to.
-    pub group: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub group: GroupId,
     /// What to do, 1 to 50 characters.
     #[validate(length(min = 1, max = 50))]
     pub activity_type: String,
@@ -319,7 +324,8 @@ pub struct CreatePingRequest {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CancelPingRequest {
     /// The user who cancels; must be the initiator of the ping.
-    pub user_id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub user_id: UserId,
 }
 
 /// The body of the request that ends the gathering of answers and runs the
@@ -327,7 +333,8 @@ pub struct CancelPingRequest {
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct TriggerMatchRequest {
     /// The user who triggers the matching; must be the initiator of the ping.
-    pub user_id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub user_id: UserId,
 }
 
 impl Ping {
@@ -340,13 +347,12 @@ impl Ping {
     /// bytes:
     ///
     /// ```
-    /// use sens_o_matic::models::{CreatePingRequest, Ping};
-    /// use uuid::Uuid;
+    /// use sens_o_matic::models::{CreatePingRequest, GroupId, Ping, UserId};
     /// use validator::Validate;
     ///
     /// let request = |activity_type: &str| CreatePingRequest {
-    ///     initiator: Uuid::new_v4(),
-    ///     group: Uuid::new_v4(),
+    ///     initiator: UserId::random(),
+    ///     group: GroupId::random(),
     ///     activity_type: activity_type.to_string(),
     ///     rough_timing: "tonight".to_string(),
     ///     vibe: None,
@@ -363,7 +369,7 @@ impl Ping {
     /// ```
     pub fn new(request: CreatePingRequest) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: PingId::random(),
             initiator: request.initiator,
             group: request.group,
             activity_type: request.activity_type,
@@ -386,12 +392,13 @@ impl Ping {
     /// # Examples
     ///
     /// ```
-    /// use sens_o_matic::models::{CreatePingRequest, CreateResponseRequest, Ping, Response};
-    /// use uuid::Uuid;
+    /// use sens_o_matic::models::{
+    ///     CreatePingRequest, CreateResponseRequest, GroupId, Ping, Response, UserId,
+    /// };
     ///
     /// let mut ping = Ping::new(CreatePingRequest {
-    ///     initiator: Uuid::new_v4(),
-    ///     group: Uuid::new_v4(),
+    ///     initiator: UserId::random(),
+    ///     group: GroupId::random(),
     ///     activity_type: "drinks".to_string(),
     ///     rough_timing: "tonight".to_string(),
     ///     vibe: None,
@@ -399,7 +406,7 @@ impl Ping {
     /// assert_eq!(ping.lifecycle.state_name(), "ping_sent");
     ///
     /// ping.add_response(Response::new(CreateResponseRequest {
-    ///     user: Uuid::new_v4(),
+    ///     user: UserId::random(),
     ///     answer: false,
     ///     availability: None,
     ///     preferences: None,
@@ -433,21 +440,21 @@ impl Ping {
     }
 
     /// The answer of a user, if they gave one.
-    pub fn find_response(&self, user_id: Uuid) -> Option<&Response> {
+    pub fn find_response(&self, user_id: UserId) -> Option<&Response> {
         self.responses().iter().find(|r| r.user == user_id)
     }
 
     /// The answer with this id, to change it. Unlike
     /// [`Ping::find_response`] it looks up the id of the response, not the id
     /// of the user.
-    pub fn find_response_mut(&mut self, response_id: Uuid) -> Option<&mut Response> {
+    pub fn find_response_mut(&mut self, response_id: ResponseId) -> Option<&mut Response> {
         self.lifecycle
             .responses_mut()
             .and_then(|responses| responses.iter_mut().find(|r| r.id == response_id))
     }
 
     /// Tells whether the user has answered, yes or no.
-    pub fn has_user_responded(&self, user_id: Uuid) -> bool {
+    pub fn has_user_responded(&self, user_id: UserId) -> bool {
         self.responses().iter().any(|r| r.user == user_id)
     }
 

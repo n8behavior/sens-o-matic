@@ -8,8 +8,9 @@
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 use validator::Validate;
+
+use super::UserId;
 
 /// A point on the earth, in decimal degrees.
 ///
@@ -44,7 +45,8 @@ pub struct UserPreferences {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct User {
     /// Assigned by the server when the user is created.
-    pub id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub id: UserId,
     /// Display name, 1 to 100 characters.
     pub name: String,
     /// The avatar of the user, as the client wrote it (for example a URL). The
@@ -112,7 +114,7 @@ impl User {
     /// ```
     pub fn new(request: CreateUserRequest) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: UserId::random(),
             name: request.name,
             avatar: request.avatar,
             preferences: request.preferences,

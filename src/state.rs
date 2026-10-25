@@ -28,28 +28,37 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use uuid::Uuid;
+use std::hash::Hash;
 
-use crate::models::{Group, Ping, User};
+use crate::models::{Group, GroupId, Ping, PingId, User, UserId};
 
 /// A map from id to item, safe to share between threads.
+///
+/// The key type `K` is the id type of the items, such as [`UserId`], so that a
+/// store of users cannot be asked for the id of a group.
 ///
 /// # Panics
 ///
 /// Every method takes the lock and panics if it is poisoned, that is, if a
 /// closure panicked while it held the write lock. After that the store is
 /// unusable, and so is every request that touches it.
-#[derive(Debug, Default)]
-pub struct InMemoryStore<T> {
-    data: RwLock<HashMap<Uuid, T>>,
+#[derive(Debug)]
+pub struct InMemoryStore<K, V> {
+    data: RwLock<HashMap<K, V>>,
 }
 
-impl<T: Clone> InMemoryStore<T> {
+impl<K, V> Default for InMemoryStore<K, V> {
+    fn default() -> Self {
+        Self {
+            data: RwLock::default(),
+        }
+    }
+}
+
+impl<K: Eq + Hash, V: Clone> InMemoryStore<K, V> {
     /// Creates an empty store.
     pub fn new() -> Self {
-        Self {
-            data: RwLock::new(HashMap::new()),
-        }
+        Self::default()
     }
 
     /// Stores an item under the id. An item that is stored under the same id is
@@ -58,7 +67,7 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Panics
     ///
     /// Panics if the lock is poisoned; see [`InMemoryStore`].
-    pub fn insert(&self, id: Uuid, item: T) {
+    pub fn insert(&self, id: K, item: V) {
         self.data.write().unwrap().insert(id, item);
     }
 
@@ -67,7 +76,7 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Panics
     ///
     /// Panics if the lock is poisoned; see [`InMemoryStore`].
-    pub fn get(&self, id: &Uuid) -> Option<T> {
+    pub fn get(&self, id: &K) -> Option<V> {
         self.data.read().unwrap().get(id).cloned()
     }
 
@@ -84,11 +93,11 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Examples
     ///
     /// ```
+    /// use sens_o_matic::models::UserId;
     /// use sens_o_matic::state::InMemoryStore;
-    /// use uuid::Uuid;
     ///
     /// let store = InMemoryStore::new();
-    /// let id = Uuid::new_v4();
+    /// let id = UserId::random();
     /// store.insert(id, vec![1, 2]);
     ///
     /// let updated = store.update(&id, |numbers| numbers.push(3));
@@ -96,11 +105,11 @@ impl<T: Clone> InMemoryStore<T> {
     /// assert_eq!(store.get(&id), Some(vec![1, 2, 3]));
     ///
     /// // An unknown id changes nothing.
-    /// assert_eq!(store.update(&Uuid::new_v4(), |numbers| numbers.clear()), None);
+    /// assert_eq!(store.update(&UserId::random(), |numbers| numbers.clear()), None);
     /// ```
-    pub fn update<F>(&self, id: &Uuid, f: F) -> Option<T>
+    pub fn update<F>(&self, id: &K, f: F) -> Option<V>
     where
-        F: FnOnce(&mut T),
+        F: FnOnce(&mut V),
     {
         let mut data = self.data.write().unwrap();
         if let Some(item) = data.get_mut(id) {
@@ -117,7 +126,7 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Panics
     ///
     /// Panics if the lock is poisoned; see [`InMemoryStore`].
-    pub fn remove(&self, id: &Uuid) -> Option<T> {
+    pub fn remove(&self, id: &K) -> Option<V> {
         self.data.write().unwrap().remove(id)
     }
 
@@ -126,7 +135,7 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Panics
     ///
     /// Panics if the lock is poisoned; see [`InMemoryStore`].
-    pub fn exists(&self, id: &Uuid) -> bool {
+    pub fn exists(&self, id: &K) -> bool {
         self.data.read().unwrap().contains_key(id)
     }
 
@@ -139,9 +148,9 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Panics
     ///
     /// Panics if the lock is poisoned; see [`InMemoryStore`].
-    pub fn find<F>(&self, predicate: F) -> Option<T>
+    pub fn find<F>(&self, predicate: F) -> Option<V>
     where
-        F: Fn(&T) -> bool,
+        F: Fn(&V) -> bool,
     {
         self.data
             .read()
@@ -164,21 +173,21 @@ impl<T: Clone> InMemoryStore<T> {
     /// # Examples
     ///
     /// ```
+    /// use sens_o_matic::models::UserId;
     /// use sens_o_matic::state::InMemoryStore;
-    /// use uuid::Uuid;
     ///
     /// let store = InMemoryStore::new();
     /// for n in 1..=4 {
-    ///     store.insert(Uuid::new_v4(), n);
+    ///     store.insert(UserId::random(), n);
     /// }
     ///
     /// let mut even = store.filter(|n| n % 2 == 0);
     /// even.sort();
     /// assert_eq!(even, vec![2, 4]);
     /// ```
-    pub fn filter<F>(&self, predicate: F) -> Vec<T>
+    pub fn filter<F>(&self, predicate: F) -> Vec<V>
     where
-        F: Fn(&T) -> bool,
+        F: Fn(&V) -> bool,
     {
         self.data
             .read()
@@ -195,11 +204,11 @@ impl<T: Clone> InMemoryStore<T> {
 #[derive(Clone)]
 pub struct AppState {
     /// All the users, by id.
-    pub users: Arc<InMemoryStore<User>>,
+    pub users: Arc<InMemoryStore<UserId, User>>,
     /// All the groups, by id.
-    pub groups: Arc<InMemoryStore<Group>>,
+    pub groups: Arc<InMemoryStore<GroupId, Group>>,
     /// All the pings, by id, with their answers and hangouts.
-    pub pings: Arc<InMemoryStore<Ping>>,
+    pub pings: Arc<InMemoryStore<PingId, Ping>>,
 }
 
 impl Default for AppState {
@@ -224,7 +233,7 @@ impl AppState {
     /// # Panics
     ///
     /// Panics if the lock of the group store is poisoned; see [`InMemoryStore`].
-    pub fn get_user_groups(&self, user_id: Uuid) -> Vec<Group> {
+    pub fn get_user_groups(&self, user_id: UserId) -> Vec<Group> {
         self.groups.filter(|g| g.is_member(user_id))
     }
 
@@ -242,13 +251,12 @@ impl AppState {
     ///
     /// ```
     /// use sens_o_matic::AppState;
-    /// use sens_o_matic::models::{CreateGroupRequest, Group};
-    /// use uuid::Uuid;
+    /// use sens_o_matic::models::{CreateGroupRequest, Group, UserId};
     ///
     /// let state = AppState::new();
     /// let group = Group::new(CreateGroupRequest {
     ///     name: "Friday crew".to_string(),
-    ///     creator_id: Uuid::new_v4(),
+    ///     creator_id: UserId::random(),
     /// });
     /// state.groups.insert(group.id, group.clone());
     ///
@@ -266,7 +274,7 @@ impl AppState {
     /// # Panics
     ///
     /// Panics if the lock of the ping store is poisoned; see [`InMemoryStore`].
-    pub fn get_group_pings(&self, group_id: Uuid) -> Vec<Ping> {
+    pub fn get_group_pings(&self, group_id: GroupId) -> Vec<Ping> {
         self.pings.filter(|p| p.group == group_id)
     }
 }

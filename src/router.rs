@@ -142,3 +142,45 @@ pub fn create_router(state: AppState) -> Router {
 async fn health() -> &'static str {
     "ok"
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+    use utoipa::{OpenApi, PartialSchema};
+
+    use super::ApiDoc;
+    use crate::models::UserId;
+
+    /// The fields that hold an id say `value_type = String, format = "uuid"`
+    /// (see [`crate::models::id`]), and `UserId::schema()` says it for the
+    /// parameters. The document must spell an id the same way everywhere.
+    #[test]
+    fn ids_are_uuid_strings() {
+        let id = serde_json::to_value(UserId::schema()).unwrap();
+        assert_eq!(id, json!({ "type": "string", "format": "uuid" }));
+
+        let doc = serde_json::to_value(ApiDoc::openapi()).unwrap();
+        let schemas = &doc["components"]["schemas"];
+        let type_and_format = |pointer: &str| -> Value {
+            let schema = schemas
+                .pointer(pointer)
+                .unwrap_or_else(|| panic!("the document has no schema at {pointer}"));
+            json!({ "type": schema["type"], "format": schema["format"] })
+        };
+        for pointer in [
+            "/User/properties/id",
+            "/Group/properties/id",
+            "/Group/properties/members/items",
+            "/CreateGroupRequest/properties/creator_id",
+            "/CreatePingRequest/properties/initiator",
+            "/CreatePingRequest/properties/group",
+            "/Response/properties/id",
+            "/Response/properties/user",
+            "/HangoutData/properties/confirmed_attendees/items",
+            "/HangoutData/properties/attendee_statuses/propertyNames",
+            "/MatchResults/properties/ping_id",
+        ] {
+            assert_eq!(type_and_format(pointer), id, "at {pointer}");
+        }
+    }
+}

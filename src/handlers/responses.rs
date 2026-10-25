@@ -10,10 +10,11 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use uuid::Uuid;
 use validator::Validate;
 
-use crate::models::{AppError, AppJson, CreateResponseRequest, Response, UpdateResponseRequest};
+use crate::models::{
+    AppError, AppJson, CreateResponseRequest, PingId, Response, ResponseId, UpdateResponseRequest,
+};
 use crate::state::AppState;
 use crate::state_machine::StateMachine;
 
@@ -28,7 +29,7 @@ use crate::state_machine::StateMachine;
     post,
     path = "/api/pings/{id}/responses",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     request_body = CreateResponseRequest,
     responses(
@@ -42,7 +43,7 @@ use crate::state_machine::StateMachine;
 )]
 pub async fn create_response(
     State(state): State<AppState>,
-    Path(ping_id): Path<Uuid>,
+    Path(ping_id): Path<PingId>,
     AppJson(request): AppJson<CreateResponseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     request.validate()?;
@@ -94,8 +95,8 @@ pub async fn create_response(
     put,
     path = "/api/pings/{id}/responses/{response_id}",
     params(
-        ("id" = Uuid, Path, description = "Ping ID"),
-        ("response_id" = Uuid, Path, description = "Response ID")
+        ("id" = inline(PingId), Path, description = "Ping ID"),
+        ("response_id" = inline(ResponseId), Path, description = "Response ID")
     ),
     request_body = UpdateResponseRequest,
     responses(
@@ -108,7 +109,7 @@ pub async fn create_response(
 )]
 pub async fn update_response(
     State(state): State<AppState>,
-    Path((ping_id, response_id)): Path<(Uuid, Uuid)>,
+    Path((ping_id, response_id)): Path<(PingId, ResponseId)>,
     AppJson(request): AppJson<UpdateResponseRequest>,
 ) -> Result<Json<Response>, AppError> {
     let ping = state

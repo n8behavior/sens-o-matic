@@ -14,7 +14,8 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
+
+use super::{PingId, UserId};
 
 /// Where an attendee is on the way to, at or from the hangout.
 ///
@@ -52,11 +53,12 @@ pub struct Timeline {
 pub struct HangoutData {
     /// The users who said yes before the match was confirmed. The initiator is
     /// in the list only if they answered their own ping.
-    pub confirmed_attendees: Vec<Uuid>,
+    #[schema(value_type = Vec<String>, format = "uuid")]
+    pub confirmed_attendees: Vec<UserId>,
     /// When the hangout takes place, as the initiator confirmed it.
     pub timeline: Timeline,
     /// The status of each attendee, by user id.
-    pub attendee_statuses: HashMap<Uuid, AttendeeStatus>,
+    pub attendee_statuses: HashMap<UserId, AttendeeStatus>,
 }
 
 /// The body of the request that confirms a match as a hangout.
@@ -64,7 +66,8 @@ pub struct HangoutData {
 pub struct ConfirmHangoutRequest {
     /// The user who confirms. The server does not check it against the
     /// initiator of the ping.
-    pub user_id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub user_id: UserId,
     /// When the hangout takes place. The server stores it as it is: it does not
     /// compare it with the overlap that the matching found.
     pub timeline: Timeline,
@@ -99,7 +102,8 @@ pub struct TimeOverlap {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MatchResults {
     /// The ping that was matched.
-    pub ping_id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub ping_id: PingId,
     /// The common window, or `null` when there is none.
     pub overlap: Option<TimeOverlap>,
     /// Whether the members have a time in common.
@@ -114,10 +118,9 @@ impl HangoutData {
     ///
     /// ```
     /// use chrono::{TimeZone, Utc};
-    /// use sens_o_matic::models::{AttendeeStatus, HangoutData, Timeline};
-    /// use uuid::Uuid;
+    /// use sens_o_matic::models::{AttendeeStatus, HangoutData, Timeline, UserId};
     ///
-    /// let attendee = Uuid::new_v4();
+    /// let attendee = UserId::random();
     /// let timeline = Timeline {
     ///     start: Utc.with_ymd_and_hms(2024, 12, 15, 18, 0, 0).unwrap(),
     ///     end: Utc.with_ymd_and_hms(2024, 12, 15, 21, 0, 0).unwrap(),
@@ -126,9 +129,9 @@ impl HangoutData {
     /// let hangout = HangoutData::new(vec![attendee], timeline);
     /// assert_eq!(hangout.attendee_statuses[&attendee], AttendeeStatus::Pending);
     /// assert!(hangout.is_attendee(attendee));
-    /// assert!(!hangout.is_attendee(Uuid::new_v4()));
+    /// assert!(!hangout.is_attendee(UserId::random()));
     /// ```
-    pub fn new(attendees: Vec<Uuid>, timeline: Timeline) -> Self {
+    pub fn new(attendees: Vec<UserId>, timeline: Timeline) -> Self {
         let attendee_statuses = attendees
             .iter()
             .map(|id| (*id, AttendeeStatus::Pending))
@@ -146,12 +149,12 @@ impl HangoutData {
     /// It does not check that the user is an attendee: the caller does, with
     /// [`HangoutData::is_attendee`]. A status set for someone else would be in
     /// `attendee_statuses` but not in `confirmed_attendees`.
-    pub fn update_attendee_status(&mut self, user_id: Uuid, status: AttendeeStatus) {
+    pub fn update_attendee_status(&mut self, user_id: UserId, status: AttendeeStatus) {
         self.attendee_statuses.insert(user_id, status);
     }
 
     /// Tells whether the user is one of the confirmed attendees.
-    pub fn is_attendee(&self, user_id: Uuid) -> bool {
+    pub fn is_attendee(&self, user_id: UserId) -> bool {
         self.confirmed_attendees.contains(&user_id)
     }
 }

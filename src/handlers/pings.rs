@@ -11,13 +11,12 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use uuid::Uuid;
 use validator::Validate;
 
 use crate::matching::MatchingEngine;
 use crate::models::{
     AppError, AppJson, CancelPingRequest, ConfirmHangoutRequest, CreatePingRequest, MatchResults,
-    Ping, TriggerMatchRequest, UpdateAttendeeStatusRequest,
+    Ping, PingId, TriggerMatchRequest, UpdateAttendeeStatusRequest, UserId,
 };
 use crate::state::AppState;
 use crate::state_machine::StateMachine;
@@ -66,7 +65,7 @@ pub async fn create_ping(
     get,
     path = "/api/pings/{id}",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     responses(
         (status = 200, description = "Ping found", body = Ping),
@@ -76,7 +75,7 @@ pub async fn create_ping(
 )]
 pub async fn get_ping(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
 ) -> Result<Json<Ping>, AppError> {
     state
         .pings
@@ -94,7 +93,7 @@ pub async fn get_ping(
     post,
     path = "/api/pings/{id}/cancel",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     request_body = CancelPingRequest,
     responses(
@@ -107,7 +106,7 @@ pub async fn get_ping(
 )]
 pub async fn cancel_ping(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
     AppJson(request): AppJson<CancelPingRequest>,
 ) -> Result<Json<Ping>, AppError> {
     let ping = state
@@ -134,7 +133,7 @@ pub async fn cancel_ping(
     post,
     path = "/api/pings/{id}/match",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     request_body = TriggerMatchRequest,
     responses(
@@ -147,7 +146,7 @@ pub async fn cancel_ping(
 )]
 pub async fn trigger_match(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
     AppJson(request): AppJson<TriggerMatchRequest>,
 ) -> Result<Json<Ping>, AppError> {
     let ping = state
@@ -180,7 +179,7 @@ pub async fn trigger_match(
     get,
     path = "/api/pings/{id}/match-results",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     responses(
         (status = 200, description = "Match results", body = MatchResults),
@@ -191,7 +190,7 @@ pub async fn trigger_match(
 )]
 pub async fn get_match_results(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
 ) -> Result<Json<MatchResults>, AppError> {
     let ping = state
         .pings
@@ -218,7 +217,7 @@ pub async fn get_match_results(
     post,
     path = "/api/pings/{id}/confirm",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     request_body = ConfirmHangoutRequest,
     responses(
@@ -231,7 +230,7 @@ pub async fn get_match_results(
 )]
 pub async fn confirm_hangout(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
     AppJson(request): AppJson<ConfirmHangoutRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let ping = state
@@ -260,7 +259,7 @@ pub async fn confirm_hangout(
     post,
     path = "/api/pings/{id}/activate",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     responses(
         (status = 200, description = "Ping activated (hangout started)", body = Ping),
@@ -271,7 +270,7 @@ pub async fn confirm_hangout(
 )]
 pub async fn activate_ping(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
 ) -> Result<Json<Ping>, AppError> {
     let ping = state
         .pings
@@ -293,7 +292,7 @@ pub async fn activate_ping(
     post,
     path = "/api/pings/{id}/complete",
     params(
-        ("id" = Uuid, Path, description = "Ping ID")
+        ("id" = inline(PingId), Path, description = "Ping ID")
     ),
     responses(
         (status = 200, description = "Ping completed", body = Ping),
@@ -304,7 +303,7 @@ pub async fn activate_ping(
 )]
 pub async fn complete_ping(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<PingId>,
 ) -> Result<Json<Ping>, AppError> {
     let ping = state
         .pings
@@ -330,8 +329,8 @@ pub async fn complete_ping(
     put,
     path = "/api/pings/{id}/attendees/{user_id}/status",
     params(
-        ("id" = Uuid, Path, description = "Ping ID"),
-        ("user_id" = Uuid, Path, description = "User ID")
+        ("id" = inline(PingId), Path, description = "Ping ID"),
+        ("user_id" = inline(UserId), Path, description = "User ID")
     ),
     request_body = UpdateAttendeeStatusRequest,
     responses(
@@ -343,7 +342,7 @@ pub async fn complete_ping(
 )]
 pub async fn update_attendee_status(
     State(state): State<AppState>,
-    Path((ping_id, user_id)): Path<(Uuid, Uuid)>,
+    Path((ping_id, user_id)): Path<(PingId, UserId)>,
     AppJson(request): AppJson<UpdateAttendeeStatusRequest>,
 ) -> Result<Json<Ping>, AppError> {
     let ping = state
