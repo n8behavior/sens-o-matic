@@ -1,3 +1,10 @@
+//! Entry point of the server.
+//!
+//! Serves `sens_o_matic::create_router` on `0.0.0.0:3000`; the port is not
+//! configurable. Request tracing and a permissive CORS policy are layered on
+//! here and are not part of the router. The log filter comes from `RUST_LOG`
+//! and defaults to `sens_o_matic=debug,tower_http=debug`.
+
 use std::net::SocketAddr;
 
 use tokio::net::TcpListener;

@@ -3,13 +3,17 @@ default:
     @just --list
 
 # ANCHOR: check
-# Run all checks (format + clippy + tests + book) — matches CI
-check: fmt-check lint test book-test
+# Run all checks (format + clippy + docs + tests + book) — matches CI
+check: fmt-check lint doc test book-test
 # ANCHOR_END: check
 
 # Lint with clippy (warnings are errors)
 lint:
     cargo clippy --all-targets -- -D warnings
+
+# Build the API docs (warnings, such as a broken intra-doc link, are errors)
+doc:
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
 # Run tests
 test:

@@ -1,3 +1,31 @@
+//! The route table, and the OpenAPI document that describes it.
+//!
+//! [`create_router`] registers every handler of [`crate::handlers`] and
+//! serves, besides the API itself:
+//!
+//! | Path | What |
+//! |---|---|
+//! | `/health` | `ok`, to tell that the server is up |
+//! | `/api-docs/openapi.json` | the OpenAPI document |
+//! | `/swagger-ui` | the same document, rendered for people |
+//!
+//! # The OpenAPI document
+//!
+//! The document is not written by hand. It is built from the code:
+//!
+//! - Each handler carries a `#[utoipa::path]` attribute with its method, path,
+//!   parameters and status codes, and the router takes the route from it. A
+//!   handler without the attribute does not compile into [`routes!`].
+//! - Each type of [`crate::models`] that appears in a request or a response
+//!   derives [`utoipa::ToSchema`] and is listed in `ApiDoc`.
+//! - The *doc comments* of the handlers and of the schema types, and of their
+//!   fields and variants, become the descriptions in the document. That is why
+//!   they are written for the reader of the API, and why they carry no
+//!   intra-doc links: a link would show up in the JSON as plain text.
+//!
+//! A new endpoint is thus described once, in its doc comment and its
+//! attribute, and the document follows.
+
 use axum::Router;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
@@ -8,6 +36,9 @@ use crate::handlers::{groups, pings, responses, users};
 use crate::models;
 use crate::state::AppState;
 
+/// The skeleton of the OpenAPI document: title, tags and the schema types.
+///
+/// The paths are added by [`create_router`] from the handlers.
 #[derive(OpenApi)]
 #[openapi(
     info(
@@ -54,6 +85,21 @@ use crate::state::AppState;
 )]
 struct ApiDoc;
 
+/// Builds the router of the API, with its OpenAPI document and Swagger UI.
+///
+/// The router holds `state` and answers every endpoint of [`crate::handlers`]. It
+/// adds no layer: tracing and CORS are the business of the caller (see
+/// `src/main.rs`).
+///
+/// # Examples
+///
+/// ```
+/// use sens_o_matic::{AppState, create_router};
+///
+/// let app = create_router(AppState::new());
+/// // Serve it with `axum::serve`, as `src/main.rs` does.
+/// # let _ = app;
+/// ```
 pub fn create_router(state: AppState) -> Router {
     let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         // Users
@@ -92,6 +138,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", axum::routing::get(health))
 }
 
+/// Answers `ok`, so that a load balancer or a script can tell the server is up.
 async fn health() -> &'static str {
     "ok"
 }

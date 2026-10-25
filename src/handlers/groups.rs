@@ -1,3 +1,10 @@
+//! The endpoints for groups: create, read and join one, leave one, replace its invite
+//! code, and list its pings.
+//!
+//! A group is joined with its invite code and left freely. Only the members of a group
+//! can send pings to it and answer them; the endpoints of [`super::pings`] and
+//! [`super::responses`] check it against the group stored here.
+
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -14,6 +21,9 @@ use crate::models::{
 };
 use crate::state::AppState;
 
+/// Creates a group, with the creator as its only member and a new invite code.
+///
+/// The server does not check that the creator is a user that exists.
 #[utoipa::path(
     post,
     path = "/api/groups",
@@ -36,6 +46,7 @@ pub async fn create_group(
     Ok((StatusCode::CREATED, Json(group)))
 }
 
+/// Returns a group, with its members and its invite code.
 #[utoipa::path(
     get,
     path = "/api/groups/{id}",
@@ -59,6 +70,10 @@ pub async fn get_group(
         .ok_or_else(|| AppError::NotFound("Group".to_string()))
 }
 
+/// Adds a user to the group that has the given invite code.
+///
+/// The code is looked up as it is written, so the case matters. Joining a group that the
+/// user is in already is harmless. The server does not check that the user exists.
 #[utoipa::path(
     post,
     path = "/api/groups/join",
@@ -88,6 +103,10 @@ pub async fn join_group(
     Ok(Json(updated))
 }
 
+/// Removes a user from a group.
+///
+/// It succeeds also when the user is not a member. The pings and the answers of the
+/// user stay as they are. Nothing stops the last member from leaving.
 #[utoipa::path(
     post,
     path = "/api/groups/{id}/leave",
@@ -114,6 +133,9 @@ pub async fn leave_group(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Replaces the invite code of a group with a new one.
+///
+/// Any member can do it. The old code stops working at once.
 #[utoipa::path(
     post,
     path = "/api/groups/{id}/regenerate-invite",
@@ -153,11 +175,19 @@ pub async fn regenerate_invite_code(
     Ok(Json(updated))
 }
 
+/// The query string of the list of the pings of a group.
 #[derive(Debug, Deserialize)]
 pub struct ListPingsQuery {
+    /// Keeps only the pings in this state, by the name that the `state` field of a
+    /// ping has (`gathering`, `no_match`, …); see
+    /// [`PingLifecycle::state_name`](crate::models::PingLifecycle::state_name).
     pub state: Option<String>,
 }
 
+/// Lists the pings that were sent to a group, in no particular order.
+///
+/// With `state`, only the pings in that state are listed. A value that names no state
+/// gives an empty list, not an error.
 #[utoipa::path(
     get,
     path = "/api/groups/{id}/pings",

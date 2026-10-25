@@ -1,3 +1,10 @@
+//! The endpoints for pings: send one, read it, and move it through its lifecycle.
+//!
+//! Each endpoint after the creation of a ping is one transition, or one read, of the
+//! lifecycle described in [`crate::models::ping`]. The rules of each transition are
+//! those of [`crate::state_machine`], and the matching is that of [`crate::matching`].
+//! The answers of the members are the business of [`super::responses`].
+
 use axum::{
     Json,
     extract::{Path, State},
@@ -15,6 +22,10 @@ use crate::models::{
 use crate::state::AppState;
 use crate::state_machine::StateMachine;
 
+/// Sends a ping to a group.
+///
+/// The group must exist and the initiator must be one of its members. The ping starts
+/// in the `ping_sent` state.
 #[utoipa::path(
     post,
     path = "/api/pings",
@@ -50,6 +61,7 @@ pub async fn create_ping(
     Ok((StatusCode::CREATED, Json(ping)))
 }
 
+/// Returns a ping, with its state and the data of that state.
 #[utoipa::path(
     get,
     path = "/api/pings/{id}",
@@ -73,6 +85,11 @@ pub async fn get_ping(
         .ok_or_else(|| AppError::NotFound("Ping".to_string()))
 }
 
+/// Cancels a ping.
+///
+/// Only the initiator can, and only while the ping is not in an end state
+/// (`complete`, `cancelled` or `no_match`). The answers are kept; a confirmed hangout is
+/// dropped.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/cancel",
@@ -108,6 +125,11 @@ pub async fn cancel_ping(
     Ok(Json(updated))
 }
 
+/// Ends the gathering of answers and runs the matching.
+///
+/// Only the initiator can, and only in the `gathering` state, so at least one member
+/// must have answered. The ping moves to `matching` when the members who said yes
+/// and gave an availability share a time, and to `no_match` when they do not.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/match",
@@ -149,6 +171,11 @@ pub async fn trigger_match(
     Ok(Json(updated))
 }
 
+/// Returns the match results of a ping.
+///
+/// In the `matching` state these are the results that the matching stored. In any
+/// other state they are worked out from the answers as they are now, and the ping
+/// does not change; this works also while the ping is gathering, as a preview.
 #[utoipa::path(
     get,
     path = "/api/pings/{id}/match-results",
@@ -181,6 +208,12 @@ pub async fn get_match_results(
     Ok(Json(match_results))
 }
 
+/// Confirms the hangout of a ping that has a match.
+///
+/// The ping must be in the `matching` state. It moves to `venue_confirmed`. The
+/// attendees are all the members who said yes, each one `pending`, and the timeline
+/// is stored as it is sent: the server does not compare it with the common window
+/// and does not check who confirms.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/confirm",
@@ -222,6 +255,7 @@ pub async fn confirm_hangout(
     Ok((StatusCode::CREATED, Json(updated)))
 }
 
+/// Starts the hangout: moves a ping from `venue_confirmed` to `active_hangout`.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/activate",
@@ -254,6 +288,7 @@ pub async fn activate_ping(
     Ok(Json(updated))
 }
 
+/// Ends the hangout: moves a ping from `active_hangout` to `complete`.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/complete",
@@ -286,6 +321,11 @@ pub async fn complete_ping(
     Ok(Json(updated))
 }
 
+/// Sets the status of one attendee of the hangout.
+///
+/// The ping must have a hangout, that is, be in the `venue_confirmed`,
+/// `active_hangout` or `complete` state, and the user must be one of its
+/// attendees. A status can follow any other.
 #[utoipa::path(
     put,
     path = "/api/pings/{id}/attendees/{user_id}/status",

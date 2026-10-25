@@ -29,3 +29,10 @@ utoipa-axum = "0.2.0"
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 uuid = { version = "1.20.0", features = ["v4", "serde"] }
 validator = { version = "0.20.0", features = ["derive"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+wildcard_enum_match_arm = "warn"
