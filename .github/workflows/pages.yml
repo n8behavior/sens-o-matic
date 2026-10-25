@@ -1,0 +1,57 @@
+name: Pages
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+env:
+  CARGO_TERM_COLOR: always
+# Least privilege: the build only reads. Only the job `deploy` writes the
+# Pages site, and a job-level `permissions` replaces this one.
+permissions:
+  contents: read
+jobs:
+  # ANCHOR: build
+  build:
+    name: Site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.93"
+      - uses: Swatinem/rust-cache@v2
+      - uses: extractions/setup-just@v2
+      - uses: ./.github/actions/setup-mdbook
+      # The recipe `site` writes the layout of the site: this workflow does
+      # not know it, and it asks the justfile for the folder.
+      - run: just site
+      - id: site
+        run: echo "dir=$(just --evaluate site_dir)" >> "$GITHUB_OUTPUT"
+      # A pull request uploads too, so that a site that cannot be packed fails
+      # before the merge. Only the job `deploy` publishes it.
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ steps.site.outputs.dir }}
+  # ANCHOR_END: build
+
+  # ANCHOR: deploy
+  deploy:
+    name: Deploy
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    # Two deploys do not run at once, and a deploy that runs is not cancelled.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
+  # ANCHOR_END: deploy
