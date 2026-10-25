@@ -8,20 +8,20 @@
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use validator::Validate;
 
 use super::UserId;
+use super::value::{Distance, Latitude, Longitude, Name};
 
-/// A point on the earth, in decimal degrees.
-///
-/// By convention `lat` is in `-90..=90` and `lng` in `-180..=180`; the server
-/// does not check the range.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+/// A point on the earth, in decimal degrees: `lat` is in `-90..=90` and `lng`
+/// in `-180..=180`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct Location {
     /// Degrees north of the equator; negative is south.
-    pub lat: f64,
+    #[schema(value_type = f64, minimum = -90, maximum = 90)]
+    pub lat: Latitude,
     /// Degrees east of the prime meridian; negative is west.
-    pub lng: f64,
+    #[schema(value_type = f64, minimum = -180, maximum = 180)]
+    pub lng: Longitude,
 }
 
 /// What a user usually wants. Every field is optional.
@@ -30,9 +30,10 @@ pub struct Location {
 /// them yet.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, Default)]
 pub struct UserPreferences {
-    /// How far the user usually travels, in miles.
+    /// How far the user usually travels, in miles. Must not be negative.
+    #[schema(value_type = Option<f64>, minimum = 0)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_distance: Option<f64>,
+    pub default_distance: Option<Distance>,
     /// Names of the areas the user likes to meet in, free text.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub favorite_areas: Option<Vec<String>>,
@@ -48,7 +49,8 @@ pub struct User {
     #[schema(value_type = String, format = "uuid")]
     pub id: UserId,
     /// Display name, 1 to 100 characters.
-    pub name: String,
+    #[schema(value_type = String, min_length = 1, max_length = 100)]
+    pub name: Name,
     /// The avatar of the user, as the client wrote it (for example a URL). The
     /// server does not interpret it.
     pub avatar: Option<String>,
@@ -57,11 +59,11 @@ pub struct User {
 }
 
 /// The body of the request that creates a user.
-#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateUserRequest {
     /// Display name, 1 to 100 characters.
-    #[validate(length(min = 1, max = 100))]
-    pub name: String,
+    #[schema(value_type = String, min_length = 1, max_length = 100)]
+    pub name: Name,
     /// The avatar, as a string. The server does not interpret it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar: Option<String>,
@@ -73,12 +75,12 @@ pub struct CreateUserRequest {
 /// The body of the request that changes a user. Every field is optional, and a
 /// field that is left out keeps its value. The avatar and the preferences can be
 /// replaced but not cleared.
-#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateUserRequest {
     /// The new display name, 1 to 100 characters.
-    #[validate(length(min = 1, max = 100))]
+    #[schema(value_type = Option<String>, min_length = 1, max_length = 100)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    pub name: Option<Name>,
     /// The new avatar.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avatar: Option<String>,
@@ -89,28 +91,24 @@ pub struct UpdateUserRequest {
 }
 
 impl User {
-    /// Creates a user with a new random id from a request that has passed
-    /// validation.
+    /// Creates a user with a new random id. The request holds only valid
+    /// values, so this cannot fail.
     ///
     /// # Examples
     ///
     /// ```
     /// use sens_o_matic::models::{CreateUserRequest, User};
-    /// use validator::Validate;
     ///
     /// let request = CreateUserRequest {
-    ///     name: "Ada".to_string(),
+    ///     name: "Ada".parse().unwrap(),
     ///     avatar: None,
     ///     preferences: None,
     /// };
-    /// request.validate().expect("a name of 1 to 100 characters is valid");
-    ///
     /// let user = User::new(request);
-    /// assert_eq!(user.name, "Ada");
+    /// assert_eq!(user.name.as_str(), "Ada");
     ///
-    /// // An empty name is rejected by `validate`, before `User::new`.
-    /// let empty = CreateUserRequest { name: String::new(), avatar: None, preferences: None };
-    /// assert!(empty.validate().is_err());
+    /// // An empty name is refused where the body is read, before `User::new`.
+    /// assert!(serde_json::from_str::<CreateUserRequest>(r#"{ "name": "" }"#).is_err());
     /// ```
     pub fn new(request: CreateUserRequest) -> Self {
         Self {
@@ -133,18 +131,18 @@ impl User {
     /// use sens_o_matic::models::{CreateUserRequest, UpdateUserRequest, User};
     ///
     /// let mut user = User::new(CreateUserRequest {
-    ///     name: "Ada".to_string(),
+    ///     name: "Ada".parse().unwrap(),
     ///     avatar: Some("https://example.com/ada.png".to_string()),
     ///     preferences: None,
     /// });
     ///
     /// user.update(UpdateUserRequest {
-    ///     name: Some("Ada Lovelace".to_string()),
+    ///     name: Some("Ada Lovelace".parse().unwrap()),
     ///     avatar: None,
     ///     preferences: None,
     /// });
     ///
-    /// assert_eq!(user.name, "Ada Lovelace");
+    /// assert_eq!(user.name.as_str(), "Ada Lovelace");
     /// assert_eq!(user.avatar.as_deref(), Some("https://example.com/ada.png"));
     /// ```
     pub fn update(&mut self, request: UpdateUserRequest) {

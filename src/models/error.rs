@@ -11,13 +11,9 @@
 //! | [`AppError`] | Status | `error` | Used when |
 //! |---|---|---|---|
 //! | `NotFound` | 404 | `not_found` | an id refers to nothing |
-//! | `BadRequest` | 400 | `bad_request` | the body is malformed or breaks a rule that needs code |
-//! | `Validation` | 400 | `bad_request` | a `#[validate(...)]` constraint of a request fails |
+//! | `BadRequest` | 400 | `bad_request` | the body is malformed or breaks a rule of a value (see [`value`](super::value)) |
 //! | `Forbidden` | 403 | `forbidden` | the user is not allowed to do this |
 //! | `Conflict` | 409 | `conflict` | the ping is in a state that does not allow this |
-//!
-//! `BadRequest` and `Validation` look the same to a client; the server keeps
-//! them apart so that the origin of a 400 is visible in the code.
 
 use axum::{
     Json,
@@ -133,8 +129,9 @@ pub enum AppError {
     #[error("Not found: {0}")]
     NotFound(String),
 
-    /// The request is malformed, or breaks a rule that needs code. The payload
-    /// is the message for the client.
+    /// The body is not valid JSON of the expected type, or holds a value that
+    /// breaks a rule (see [`value`](super::value)). The payload is the message
+    /// for the client.
     #[error("Bad request: {0}")]
     BadRequest(String),
 
@@ -147,11 +144,6 @@ pub enum AppError {
     /// for the client.
     #[error("Conflict: {0}")]
     Conflict(String),
-
-    /// A `#[validate(...)]` constraint of a request failed. The payload is the
-    /// report of [`validator::ValidationErrors`].
-    #[error("Validation error: {0}")]
-    Validation(String),
 }
 
 impl IntoResponse for AppError {
@@ -161,14 +153,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, ApiError::bad_request(msg)),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, ApiError::forbidden(msg)),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, ApiError::conflict(msg)),
-            AppError::Validation(msg) => (StatusCode::BAD_REQUEST, ApiError::bad_request(msg)),
         };
         (status, Json(error)).into_response()
-    }
-}
-
-impl From<validator::ValidationErrors> for AppError {
-    fn from(errors: validator::ValidationErrors) -> Self {
-        AppError::Validation(errors.to_string())
     }
 }

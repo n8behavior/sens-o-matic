@@ -11,7 +11,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use validator::Validate;
 
 use crate::matching::MatchingEngine;
 use crate::models::{
@@ -40,8 +39,6 @@ pub async fn create_ping(
     State(state): State<AppState>,
     AppJson(request): AppJson<CreatePingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    request.validate()?;
-
     // Verify user is a member of the group
     let group = state
         .groups

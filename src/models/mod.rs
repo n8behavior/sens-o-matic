@@ -3,6 +3,7 @@
 //! | Module | Entities | Concept |
 //! |---|---|---|
 //! | [`id`] | [`Id`], [`UserId`], [`GroupId`], [`PingId`], [`ResponseId`] | The id of an entity, one type for each kind |
+//! | [`value`] | [`BoundedText`], [`InviteCode`], [`Distance`], [`Latitude`], [`Longitude`], [`TimeWindow`] | A value that can only be valid |
 //! | [`user`] | [`User`] | A person, with optional preferences |
 //! | [`group`] | [`Group`] | The people a ping is sent to, joined by invite code |
 //! | [`ping`] | [`Ping`], [`PingLifecycle`] | One request to meet, and the state it is in |
@@ -25,15 +26,13 @@
 //!
 //! # Validation
 //!
-//! A request body goes through three checks, in this order, and the first to
-//! fail ends the request with `400 Bad Request` (see [`error`]):
-//!
-//! 1. The shape: [`AppJson`] rejects a body that is not valid JSON of the
-//!    expected type.
-//! 2. The constraints on the fields: the `#[validate(...)]` attributes of the
-//!    [`validator`] crate, run by the handler with `request.validate()?`.
-//! 3. The rules that need code: [`Availability::validate_times`] and
-//!    [`CreateResponseRequest::validate_preferences`].
+//! A request body is checked once, when it is read, and a handler validates
+//! nothing. A field that has a rule has a type that can only hold a valid
+//! value, and its [`Deserialize`](serde::Deserialize) goes through the
+//! constructor of the type (see [`value`]). A body that breaks a rule, or is
+//! not valid JSON of the expected type, is refused by [`AppJson`] with `400
+//! Bad Request` (see [`error`]) before the handler runs. The create and the
+//! update of an entity use the same types, so they keep the same rules.
 //!
 //! A rule that needs the state of the server, such as "the user is a member of
 //! the group", is checked by the handler and answered with `403` or `404`.
@@ -45,6 +44,7 @@ pub mod id;
 pub mod ping;
 pub mod response;
 pub mod user;
+pub mod value;
 
 pub use error::{ApiError, AppError, AppJson};
 pub use group::{
@@ -60,3 +60,7 @@ pub use response::{
     Availability, CreateResponseRequest, Response, ResponsePreferences, UpdateResponseRequest,
 };
 pub use user::{CreateUserRequest, Location, UpdateUserRequest, User, UserPreferences};
+pub use value::{
+    ActivityType, BoundedText, Distance, InviteCode, Latitude, Longitude, Name, RoughTiming,
+    TimeWindow, Vibe,
+};
