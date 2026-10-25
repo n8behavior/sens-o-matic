@@ -98,6 +98,8 @@ jobs:
             rustfmt --version
             just --version
             hurl --version
+            mdbook --version
+            rustup target list --installed
             git --version
             gh --version
             claude --version
