@@ -48,3 +48,40 @@ serves that layout. The links to the Rust docs work in the site, not in the
 book alone that `book-build` writes. The links to Swagger UI and to the
 OpenAPI document work while the server runs. `book-test` fails when those
 links name another port than `api_port`.
+
+## The hosted site
+
+The workflow `.github/workflows/pages.yml` hosts the same site on GitHub Pages:
+the book at the root and the Rust docs of `main` in `rustdoc/`. Its URL is in
+the `README.md`. The workflow calls `just site`, so the layout has one home,
+and it installs `mdbook` with the composite action `setup-mdbook`, as the other
+workflows do.
+
+```yaml
+{{#include ../../.github/workflows/pages.yml:build}}
+```
+
+A pull request builds and packs the site, so a broken book or a broken link to
+the Rust docs fails before the merge. Only a push to `main` runs the job
+`deploy`, the one job with the permissions to write the site:
+
+```yaml
+{{#include ../../.github/workflows/pages.yml:deploy}}
+```
+
+The hosted site has no server, so its links to Swagger UI and to the OpenAPI
+document lead to the machine of the reader (see
+[API documentation](api-documentation.md)). The hosted site is the only place
+with the Rust docs of the crate: docs.rs cannot build it, because the build
+script of `utoipa-swagger-ui` downloads Swagger UI and the sandbox of docs.rs
+has no network. The site holds the docs of `main`, which are ahead of the
+last release. `Cargo.toml` names the site as `documentation`, so crates.io
+shows it in place of the docs.rs link.
+
+Pages needs the source "GitHub Actions" (`build_type=workflow`). That is a
+setting of the repository, not of the workflow, and a person with admin rights
+sets it once before the first deploy:
+
+```bash
+gh api -X POST repos/n8behavior/sens-o-matic/pages -f build_type=workflow
+```

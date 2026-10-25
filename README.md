@@ -24,8 +24,9 @@ The server listens on `http://localhost:3000`.
 
 ## More
 
-The book has the concepts and the usage: `just book` serves it with the Rust
-docs and Swagger UI, and opens the browser (it needs
+The book has the concepts and the usage, with the Rust docs of `main`, at
+<https://n8behavior.github.io/sens-o-matic/>. `just book` serves it with the
+Rust docs and Swagger UI on your machine, and opens the browser (it needs
 [mdbook](https://rust-lang.github.io/mdBook/)). `just` lists every command.
 
 ## License
