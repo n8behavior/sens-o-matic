@@ -24,7 +24,8 @@ The server listens on `http://localhost:3000`.
 
 ## More
 
-The book has the concepts and the usage: `just book` builds it (it needs
+The book has the concepts and the usage: `just book` serves it with the Rust
+docs and Swagger UI, and opens the browser (it needs
 [mdbook](https://rust-lang.github.io/mdBook/)). `just` lists every command.
 
 ## License

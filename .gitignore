@@ -1,3 +1,4 @@
 /target
 /book/book
+/book/src/rustdoc
 .claude/settings.local.json
