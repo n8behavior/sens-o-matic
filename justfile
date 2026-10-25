@@ -107,6 +107,17 @@ release: check publish-dry-run
 build-release:
     cargo build --release --target x86_64-unknown-linux-musl
 
+# Build the deploy image of the server (local only: no registry, no push)
+image: build-release
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # The context holds the binary and nothing else: the target folder is
+    # too big to send to the docker daemon.
+    context=$(mktemp -d)
+    trap 'rm -rf "$context"' EXIT
+    cp target/x86_64-unknown-linux-musl/release/sens-o-matic "$context/"
+    docker build --file deploy/server/Dockerfile --tag sens-o-matic "$context"
+
 # Package release artifact as tarball
 package version:
     mkdir -p staging

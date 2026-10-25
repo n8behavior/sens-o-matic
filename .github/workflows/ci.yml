@@ -31,3 +31,34 @@ jobs:
           hurl --version
       - name: Hurl API suite
         run: just test-api
+  image:
+    name: Image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.93"
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+      - uses: extractions/setup-just@v2
+      - run: just image
+      - name: Image size
+        run: docker image ls sens-o-matic
+      - name: Run the image
+        run: docker run --detach --name server --publish 3000:3000 sens-o-matic
+      - name: Wait for GET /health
+        run: |
+          for i in $(seq 1 30); do
+            if reply=$(curl -sf http://localhost:3000/health); then
+              echo "GET /health answered: $reply"
+              exit 0
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' server)" != true ]; then
+              break
+            fi
+            sleep 1
+          done
+          echo "::error::The image did not answer GET /health"
+          docker logs server
+          exit 1
