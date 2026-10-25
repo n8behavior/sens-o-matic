@@ -1,0 +1,125 @@
+name: Session image
+
+# The session image of this repository. A change of its folder, of its
+# pin or of this workflow builds the image of the folder, when the
+# registry does not have it yet. Then the job prints the versions of the
+# tools of the image and checks that riff.toml pins it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - deploy/session/**
+      - riff.toml
+      - .github/workflows/session-image.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - deploy/session/**
+      - riff.toml
+      - .github/workflows/session-image.yml
+
+# Least privilege: the job below adds the write of the packages.
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Session image
+    # A pull request from a fork cannot write the packages, so it cannot
+    # push the image.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    # One run at a time. A newer run waits, and then finds the image.
+    concurrency:
+      group: session-image
+      cancel-in-progress: false
+    env:
+      IMAGE: ghcr.io/n8behavior/sens-o-matic-session
+    steps:
+      - uses: actions/checkout@v7
+
+      # The tag is the git tree of the folder. The same folder gives the
+      # same tag, also after the squash merge.
+      - name: Tag the image with the tree of its folder
+        run: echo "TAG=tree-$(git rev-parse HEAD:deploy/session)" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      # A build of the same folder gives a new digest, so the job builds
+      # the image of a folder only one time.
+      - name: Look for the image of the folder
+        id: found
+        run: |
+          if out=$(docker buildx imagetools inspect "$IMAGE:$TAG" --format '{{json .Manifest}}'); then
+            echo "digest=$(jq -r .digest <<< "$out")" >> "$GITHUB_OUTPUT"
+          else
+            echo "The registry has no $IMAGE:$TAG. The job builds it."
+          fi
+
+      - name: Build and push the image
+        id: build
+        if: steps.found.outputs.digest == ''
+        uses: docker/build-push-action@v7
+        with:
+          context: deploy/session
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          # One image manifest and no index: its digest is the digest
+          # that riff.toml pins and podman pulls.
+          provenance: false
+          cache-from: type=gha,scope=session-image
+          cache-to: type=gha,scope=session-image,mode=max
+
+      # The log shows what the image has. This step comes before the
+      # check of the pin, so the log has the versions also when the pin
+      # is wrong.
+      - name: Print the versions of the tools of the image
+        env:
+          DIGEST: ${{ steps.found.outputs.digest || steps.build.outputs.digest }}
+        run: |
+          docker run --rm "$IMAGE@$DIGEST" bash -c '
+            set -eu
+            rustc --version
+            cargo clippy --version
+            rustfmt --version
+            just --version
+            hurl --version
+            git --version
+            gh --version
+            claude --version
+          '
+
+      - name: Check the pin in riff.toml
+        env:
+          DIGEST: ${{ steps.found.outputs.digest || steps.build.outputs.digest }}
+        run: |
+          want="$IMAGE@$DIGEST"
+          {
+            echo "## Session image"
+            echo
+            echo "The image of \`deploy/session/\` is \`$IMAGE:$TAG\`. Pin it in \`riff.toml\`:"
+            echo
+            echo '```toml'
+            echo "image = \"$want\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          pinned=$(grep -E '^image *= *"' riff.toml | head -n 1 | sed -E 's/^image *= *"([^"]*)".*/\1/')
+          if [ "$pinned" != "$want" ]; then
+            echo "::error file=riff.toml::riff.toml pins $pinned. The image of deploy/session/ is $want. Pin it: image = \"$want\""
+            exit 1
+          fi
+          echo "riff.toml pins $want."
