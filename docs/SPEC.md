@@ -146,7 +146,7 @@ A realized event once a ping has been matched to a venue.
 
 ## 3. The Flow (State Machine)
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         PING LIFECYCLE                                    │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -441,7 +441,7 @@ If availability is unclear (e.g., "Yes but not downtown"):
 
 **If matches found:**
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │  3 venues match your group              │
 ├─────────────────────────────────────────┤
@@ -504,7 +504,7 @@ If availability is unclear (e.g., "Yes but not downtown"):
 #### Screen: No Viable Overlap
 
 If fewer than 2 people can be there at the same time:
-```
+```text
 ┌─────────────────────────────────────────┐
 │  Can't find a time that works           │
 ├─────────────────────────────────────────┤
@@ -529,7 +529,7 @@ If fewer than 2 people can be there at the same time:
 
 #### Screen: Active Hangout View
 
-```
+```text
 ┌─────────────────────────────────────────┐
 │  DRINKS AT THE RUSTY NAIL               │
 │  Tonight · 4:30pm - 8pm                 │
@@ -667,7 +667,7 @@ When input is ambiguous, the system should:
 
 The NLU should maintain context across turns:
 
-```
+```text
 User: "Sounds good"
 System: "When are you available?"
 User: "After 5"
@@ -763,7 +763,7 @@ This maximizes the hangout window. People come and go; what matters is that it's
 
 ### Time Overlap Calculation
 
-```
+```text
 Input: Set of responses with [earliest, latest] windows
 
 Algorithm:
@@ -775,7 +775,7 @@ Algorithm:
 ```
 
 **Example:**
-```
+```text
 Sarah:  [4:00pm -------- 7:00pm]
 Mike:        [5:00pm -------- 8:00pm]
 Jen:         [5:00pm ---- 6:30pm]
@@ -811,7 +811,7 @@ Since not everyone is there the whole time, the UI shows:
 
 For each candidate venue, calculate:
 
-```
+```text
 score = (
     w_location * location_score(venue, attendees) +
     w_preference * preference_score(venue, attendees) +

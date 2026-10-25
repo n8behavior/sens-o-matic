@@ -106,6 +106,7 @@ setup-hooks:
 ci:
     gh run watch --exit-status "$(gh run list --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId')"
 
+# ANCHOR: release
 # Cut a release: run checks, tag, push, and create GitHub release
 release: check publish-dry-run
     #!/usr/bin/env bash
@@ -129,6 +130,7 @@ release: check publish-dry-run
     git push origin HEAD --tags
     gh release create "$TAG" --verify-tag --generate-notes
     echo "Released $TAG — GitHub Actions will handle the rest."
+# ANCHOR_END: release
 
 # Build release binary (static musl)
 build-release:
@@ -145,6 +147,7 @@ image: build-release
     cp target/x86_64-unknown-linux-musl/release/sens-o-matic "$context/"
     docker build --file deploy/server/Dockerfile --tag sens-o-matic "$context"
 
+# ANCHOR: package
 # Package release artifact as tarball
 package version:
     mkdir -p staging
@@ -152,7 +155,9 @@ package version:
     cp LICENSE README.md staging/
     tar -czf "sens-o-matic-{{version}}-x86_64-unknown-linux-musl.tar.gz" -C staging .
     rm -rf staging
+# ANCHOR_END: package
 
+# ANCHOR: validate-version
 # Validate that Cargo.toml version matches the given tag
 validate-version tag:
     #!/usr/bin/env bash
@@ -165,10 +170,13 @@ validate-version tag:
       exit 1
     fi
     echo "Version match: $CARGO_VERSION"
+# ANCHOR_END: validate-version
 
+# ANCHOR: publish
 # Publish to crates.io (token from env: CARGO_REGISTRY_TOKEN)
 publish:
     cargo publish
+# ANCHOR_END: publish
 
 # Dry-run publish
 publish-dry-run:

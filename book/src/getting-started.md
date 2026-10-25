@@ -22,7 +22,7 @@ creates the application state and the router, and listens on port 3000:
 {{#include ../../src/main.rs:main}}
 ```
 
-The API is then at `http://localhost:3000`. Swagger UI documents it at
-`http://localhost:3000/swagger-ui/`.
+The API is then at `http://localhost:3000`. The server documents the API
+itself: see [API documentation](api-documentation.md).
 
 Run `just` with no argument to list every recipe.

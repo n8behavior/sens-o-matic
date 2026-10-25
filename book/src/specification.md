@@ -1,0 +1,1 @@
+{{#include ../../docs/SPEC.md}}
