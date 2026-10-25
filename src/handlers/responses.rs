@@ -1,3 +1,9 @@
+//! The endpoints for the answers to a ping: give one and change one.
+//!
+//! A member answers once, and can change the answer while the ping still takes
+//! answers (see [`crate::models::PingLifecycle::can_add_response`]). The answers are
+//! stored in the ping, not on their own, so the endpoints work on the ping of the path.
+
 use axum::{
     Json,
     extract::{Path, State},
@@ -11,6 +17,13 @@ use crate::models::{AppError, AppJson, CreateResponseRequest, Response, UpdateRe
 use crate::state::AppState;
 use crate::state_machine::StateMachine;
 
+/// Answers a ping, yes or no.
+///
+/// A member answers a ping once, and only while the ping is in the `ping_sent` or
+/// `gathering` state; the first answer moves it to `gathering`. A yes should come
+/// with an `availability`, because the matching ignores a yes without one. The
+/// `latest` of the availability must be after its `earliest`, and `max_distance`
+/// must not be negative.
 #[utoipa::path(
     post,
     path = "/api/pings/{id}/responses",
@@ -72,6 +85,11 @@ pub async fn create_response(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
+/// Changes an answer.
+///
+/// Only the member who gave the answer can change it, and only while the ping is in
+/// the `ping_sent` or `gathering` state. Only the fields that are sent change. The
+/// new values are not validated like those of a new answer.
 #[utoipa::path(
     put,
     path = "/api/pings/{id}/responses/{response_id}",

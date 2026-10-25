@@ -1,3 +1,9 @@
+//! The endpoints for users: create, read, change and delete one, and list the groups
+//! of one.
+//!
+//! There is no authentication. The id of a user in a path or in a body is taken as
+//! the word of the client.
+
 use axum::{
     Json,
     extract::{Path, State},
@@ -10,6 +16,9 @@ use validator::Validate;
 use crate::models::{AppError, AppJson, CreateUserRequest, Group, UpdateUserRequest, User};
 use crate::state::AppState;
 
+/// Creates a user.
+///
+/// The server assigns the `id`. The name must be 1 to 100 characters.
 #[utoipa::path(
     post,
     path = "/api/users",
@@ -32,6 +41,7 @@ pub async fn create_user(
     Ok((StatusCode::CREATED, Json(user)))
 }
 
+/// Returns a user.
 #[utoipa::path(
     get,
     path = "/api/users/{id}",
@@ -55,6 +65,11 @@ pub async fn get_user(
         .ok_or_else(|| AppError::NotFound("User".to_string()))
 }
 
+/// Changes a user.
+///
+/// Only the fields that are sent change. The avatar and the preferences can be
+/// replaced but not cleared, and the preferences are replaced as a whole, not
+/// merged field by field.
 #[utoipa::path(
     patch,
     path = "/api/users/{id}",
@@ -83,6 +98,10 @@ pub async fn update_user(
         .ok_or_else(|| AppError::NotFound("User".to_string()))
 }
 
+/// Deletes a user.
+///
+/// Nothing else changes: the user stays in the `members` of its groups and keeps its
+/// answers to pings.
 #[utoipa::path(
     delete,
     path = "/api/users/{id}",
@@ -106,6 +125,7 @@ pub async fn delete_user(
         .ok_or_else(|| AppError::NotFound("User".to_string()))
 }
 
+/// Lists the groups that a user is a member of, in no particular order.
 #[utoipa::path(
     get,
     path = "/api/users/{id}/groups",
