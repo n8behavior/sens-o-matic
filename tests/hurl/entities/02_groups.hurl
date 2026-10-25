@@ -22,6 +22,19 @@ HTTP 201
 member_id: jsonpath "$.id"
 
 
+# A group cannot be created for a creator who is not a user
+POST {{BASE_URL}}/api/groups
+Content-Type: application/json
+{
+  "name": "Ghost Crew",
+  "creator_id": "00000000-0000-0000-0000-000000000001"
+}
+HTTP 404
+[Asserts]
+jsonpath "$.error" == "not_found"
+jsonpath "$.message" == "User not found"
+
+
 # Create a group
 POST {{BASE_URL}}/api/groups
 Content-Type: application/json
@@ -46,6 +59,25 @@ HTTP 200
 [Asserts]
 jsonpath "$.id" == {{group_id}}
 jsonpath "$.name" == "Friday Night Crew"
+
+
+# A user who does not exist cannot join, and the group does not change
+POST {{BASE_URL}}/api/groups/join
+Content-Type: application/json
+{
+  "user_id": "00000000-0000-0000-0000-000000000001",
+  "invite_code": "{{invite_code}}"
+}
+HTTP 404
+[Asserts]
+jsonpath "$.error" == "not_found"
+jsonpath "$.message" == "User not found"
+
+
+GET {{BASE_URL}}/api/groups/{{group_id}}
+HTTP 200
+[Asserts]
+jsonpath "$.members" count == 1
 
 
 # Join group via invite code

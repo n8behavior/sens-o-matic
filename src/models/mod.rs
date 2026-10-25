@@ -101,7 +101,7 @@ pub use id::{GroupId, Id, PingId, ResponseId, UserId};
 pub use ping::{
     ActiveHangout, AlreadyResponded, AnyPing, CancelPingRequest, Cancelled, Complete,
     CreatePingRequest, Gathering, MatchOutcome, Matching, NoMatch, Ping, PingSent, PingState,
-    TriggerMatchRequest, UnknownState, UpdateResponseError, VenueConfirmed,
+    TimelineRefused, TriggerMatchRequest, UnknownState, UpdateResponseError, VenueConfirmed,
 };
 pub use response::{
     Availability, CreateResponseRequest, Response, ResponsePreferences, UpdateResponseRequest,

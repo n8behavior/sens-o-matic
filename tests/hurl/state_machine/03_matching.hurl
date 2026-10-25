@@ -151,6 +151,77 @@ HTTP 409
 jsonpath "$.error" exists
 
 
+# Only the initiator can confirm: a member of the group cannot
+POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
+Content-Type: application/json
+{
+  "user_id": "{{member1_id}}",
+  "timeline": {
+    "start": "2024-12-15T18:00:00Z",
+    "end": "2024-12-15T21:00:00Z"
+  }
+}
+HTTP 403
+[Asserts]
+jsonpath "$.error" == "forbidden"
+jsonpath "$.message" == "Only initiator can confirm hangout"
+
+
+# The timeline must lie inside the common window (18:00 to 21:00): it cannot start before it
+POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
+Content-Type: application/json
+{
+  "user_id": "{{initiator_id}}",
+  "timeline": {
+    "start": "2024-12-15T17:00:00Z",
+    "end": "2024-12-15T20:00:00Z"
+  }
+}
+HTTP 400
+[Asserts]
+jsonpath "$.error" == "bad_request"
+jsonpath "$.message" contains "2024-12-15T18:00:00+00:00"
+jsonpath "$.message" contains "2024-12-15T21:00:00+00:00"
+
+
+# ... nor end after it
+POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
+Content-Type: application/json
+{
+  "user_id": "{{initiator_id}}",
+  "timeline": {
+    "start": "2024-12-15T19:00:00Z",
+    "end": "2024-12-15T22:00:00Z"
+  }
+}
+HTTP 400
+[Asserts]
+jsonpath "$.error" == "bad_request"
+jsonpath "$.message" contains "2024-12-15T21:00:00+00:00"
+
+
+# The timeline must end after it starts
+POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
+Content-Type: application/json
+{
+  "user_id": "{{initiator_id}}",
+  "timeline": {
+    "start": "2024-12-15T20:00:00Z",
+    "end": "2024-12-15T19:00:00Z"
+  }
+}
+HTTP 400
+[Asserts]
+jsonpath "$.error" == "bad_request"
+
+
+# The refusals changed nothing: the ping is still in matching
+GET {{BASE_URL}}/api/pings/{{ping_id}}
+HTTP 200
+[Asserts]
+jsonpath "$.state" == "matching"
+
+
 # Can confirm hangout from matching - returns Ping with hangout data
 POST {{BASE_URL}}/api/pings/{{ping_id}}/confirm
 Content-Type: application/json

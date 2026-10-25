@@ -129,8 +129,8 @@ pub struct CreateGroupRequest {
     /// Display name, 1 to 100 characters.
     #[schema(value_type = String, min_length = 1, max_length = 100)]
     pub name: Name,
-    /// The user who creates the group and becomes its first member. The server
-    /// does not check that this user exists.
+    /// The user who creates the group and becomes its first member; must be a
+    /// user that exists.
     #[schema(value_type = String, format = "uuid")]
     pub creator_id: UserId,
 }
@@ -138,7 +138,7 @@ pub struct CreateGroupRequest {
 /// The body of the request that adds a user to a group by its invite code.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct JoinGroupRequest {
-    /// The user who joins. The server does not check that this user exists.
+    /// The user who joins; must be a user that exists.
     #[schema(value_type = String, format = "uuid")]
     pub user_id: UserId,
     /// The invite code of the group: 6 to 8 letters or digits. Case matters.
