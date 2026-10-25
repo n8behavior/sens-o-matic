@@ -5,7 +5,7 @@ Rules for a session that works in this repository.
 ## Work
 
 - Run `just check` before each push. It runs `fmt-check`, `lint` (clippy with `-D warnings`) and `cargo test`, the same as the CI job `Check`. It must pass with no warning.
-- Do not run `just test-api` in a session: it needs `hurl`, which the session image does not have, and the CI does not run it.
+- Do not run `just test-api` in a session: it needs `hurl`, which the session image does not have. The CI job `Check` runs it in the step `Hurl API suite`, after `just check`, with the `hurl` version that the step `Install hurl` of `.github/workflows/ci.yml` pins. `just check` does not need `hurl`.
 - The crate declares `rust-version = "1.93"` in `Cargo.toml` and the CI builds with Rust 1.93. Do not use a feature newer than 1.93.
 - A commit message has a short subject in the imperative, as in `git log`.
 
