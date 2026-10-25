@@ -1,5 +1,6 @@
-# Default recipe: run checks
-default: check
+# Default recipe: list the recipes
+default:
+    @just --list
 
 # Run all checks (format + clippy + tests) — matches CI
 check: fmt-check lint test
