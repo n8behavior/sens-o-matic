@@ -19,7 +19,7 @@ HTTP 201
 [Captures]
 user_id: jsonpath "$.id"
 [Asserts]
-jsonpath "$.name" == "Alice"
+jsonpath "$.name" == "Not Alice"
 jsonpath "$.avatar" == "https://example.com/alice.jpg"
 jsonpath "$.preferences.default_distance" == 5.0
 jsonpath "$.preferences.favorite_areas[0]" == "downtown"
