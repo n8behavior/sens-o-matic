@@ -6,7 +6,7 @@
 //! [`Attendees`], whose [`AttendeeStatus`] then follows them to the venue.
 //!
 //! A hangout is not an entity of its own. It is the data of a ping in one of
-//! the states that carry it (see [`PingLifecycle::hangout`](super::PingLifecycle::hangout)),
+//! the states that carry it (see [`AnyPing::hangout`](super::AnyPing::hangout)),
 //! and the id of the ping is the id of the hangout.
 //!
 //! # One fact, one place
@@ -20,47 +20,19 @@
 //!
 //! The JSON keeps both fields. A private struct for each type, `MatchResultsWire`
 //! and `HangoutDataWire`, has the fields as they are on the wire. It is what
-//! serde writes and reads, and what the OpenAPI document describes, so the
+//! serde writes and reads, and what the OpenAPI document describes (see
+//! [`super`] for how the model takes the schema of its wire type), so the
 //! document and the JSON stay what they were. A body whose copies disagree is
 //! refused where it is read.
 
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use utoipa::{
-    PartialSchema, ToSchema,
-    openapi::{RefOr, Schema},
-};
+use utoipa::ToSchema;
 
 use super::value::{TimeWindow, TimeWindowError};
 use super::{PingId, UserId};
-
-/// Gives `$model` the OpenAPI schema of `$wire`: the schema of the JSON, which
-/// is not the shape of the model (see the [module](self)).
-///
-/// `$wire` derives `ToSchema` with `#[schema(as = ...)]`, so its name is the
-/// name of `$model`, and a reference to `$model` points at the schema of
-/// `$wire`.
-macro_rules! schema_of_wire {
-    ($model:ty => $wire:ty) => {
-        impl PartialSchema for $model {
-            fn schema() -> RefOr<Schema> {
-                <$wire>::schema()
-            }
-        }
-
-        impl ToSchema for $model {
-            fn name() -> Cow<'static, str> {
-                <$wire>::name()
-            }
-
-            fn schemas(schemas: &mut Vec<(String, RefOr<Schema>)>) {
-                <$wire>::schemas(schemas)
-            }
-        }
-    };
-}
 
 /// Where an attendee is on the way to, at or from the hangout.
 ///
@@ -622,7 +594,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::models::{CreatePingRequest, GroupId, Ping, PingLifecycle};
+    use crate::models::{
+        AnyPing, CreatePingRequest, CreateResponseRequest, GroupId, MatchOutcome, Ping, Response,
+    };
 
     fn at(hour: u32) -> DateTime<Utc> {
         Utc.with_ymd_and_hms(2024, 12, 15, hour, 0, 0).unwrap()
@@ -755,26 +729,35 @@ mod tests {
     #[test]
     fn a_ping_with_a_hangout_reads_back() {
         let user = UserId::random();
-        let mut ping = Ping::new(CreatePingRequest {
+        let ping = Ping::new(CreatePingRequest {
             initiator: user,
             group: GroupId::random(),
             activity_type: "drinks".parse().unwrap(),
             rough_timing: "tonight".parse().unwrap(),
             vibe: None,
-        });
-        ping.lifecycle = PingLifecycle::VenueConfirmed {
-            responses: vec![],
-            hangout: HangoutData::new(vec![user], timeline()),
+        })
+        .respond(Response::new(CreateResponseRequest {
+            user,
+            answer: true,
+            availability: None,
+            preferences: None,
+        }));
+        let MatchOutcome::Matching(ping) = ping.match_responses(|ping_id, _| MatchResults {
+            ping_id,
+            overlap: Some(overlap()),
+        }) else {
+            panic!("the results have an overlap");
         };
+        let ping = AnyPing::from(ping.confirm(timeline()));
 
         let json = serde_json::to_value(&ping).unwrap();
         assert_eq!(json["state"], "venue_confirmed");
         assert_eq!(json["hangout"]["confirmed_attendees"], json!([user]));
 
-        let back: Ping = serde_json::from_value(json).unwrap();
+        let back: AnyPing = serde_json::from_value(json).unwrap();
         assert_eq!(
-            back.lifecycle.hangout().unwrap().attendees,
-            ping.lifecycle.hangout().unwrap().attendees
+            back.hangout().unwrap().attendees,
+            ping.hangout().unwrap().attendees
         );
     }
 

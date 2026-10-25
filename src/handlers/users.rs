@@ -87,7 +87,10 @@ pub async fn update_user(
 ) -> Result<Json<User>, AppError> {
     state
         .users
-        .update(&id, |user| user.update(request.clone()))
+        .update(&id, |user| {
+            user.update(request.clone());
+            user.clone()
+        })
         .map(Json)
         .ok_or_else(|| AppError::NotFound("User".to_string()))
 }

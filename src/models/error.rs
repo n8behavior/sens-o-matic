@@ -5,7 +5,10 @@
 //! failure of the API has the same JSON shape:
 //!
 //! ```json
-//! { "error": "conflict", "message": "Cannot cancel when ping is in complete state" }
+//! {
+//!   "error": "conflict",
+//!   "message": "Cannot activate the hangout: the ping is in the gathering state, and this needs the venue_confirmed state. See sens_o_matic::models::ping for the lifecycle."
+//! }
 //! ```
 //!
 //! | [`AppError`] | Status | `error` | Used when |
@@ -114,8 +117,7 @@ impl ApiError {
 /// use axum::{http::StatusCode, response::IntoResponse};
 /// use sens_o_matic::models::AppError;
 ///
-/// let response = AppError::Conflict("Cannot cancel when ping is in complete state".into())
-///     .into_response();
+/// let response = AppError::Conflict("The ping is in the wrong state".into()).into_response();
 /// assert_eq!(response.status(), StatusCode::CONFLICT);
 ///
 /// // `NotFound` carries the name of the missing resource, not a message.

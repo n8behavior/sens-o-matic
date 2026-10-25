@@ -7,9 +7,10 @@
 //!    already, when it was read (see the validation there);
 //! 2. load the entities from the stores of [`crate::state`], and answer `404`
 //!    if one is missing;
-//! 3. check the rules of the ping with [`crate::state_machine`], and answer
-//!    `403` or `409` if one is broken;
-//! 4. change the entity in its store and return it.
+//! 3. change the entity in its store and return it. For a ping, the closure of the
+//!    update runs the method of [`crate::models::AnyPing`] that checks the rules of
+//!    the lifecycle and makes the transition, under the lock of the store, and the
+//!    answer is `403` or `409` if a rule is broken (see [`crate::models::ping`]).
 //!
 //! The rule itself is never in a handler, with a few exceptions that need data
 //! from two stores, such as "the user is a member of the group".
@@ -23,7 +24,7 @@
 //! are written for the reader of the API.
 //!
 //! The endpoints are grouped by the entity they work on:
-//! [`users`], [`groups`], [`pings`] (the lifecycle, see [`crate::state_machine`])
+//! [`users`], [`groups`], [`pings`] (the lifecycle, see [`crate::models::ping`])
 //! and [`responses`].
 
 pub mod groups;

@@ -6,7 +6,7 @@
 //! | [`value`] | [`BoundedText`], [`InviteCode`], [`Distance`], [`Latitude`], [`Longitude`], [`TimeWindow`] | A value that can only be valid |
 //! | [`user`] | [`User`] | A person, with optional preferences |
 //! | [`group`] | [`Group`], [`Members`] | The people a ping is sent to, joined by invite code |
-//! | [`ping`] | [`Ping`], [`PingLifecycle`] | One request to meet, and the state it is in |
+//! | [`ping`] | [`Ping`], [`AnyPing`], [`PingState`] | One request to meet, the state it is in, and the rules of its lifecycle |
 //! | [`response`] | [`Response`] | One member's answer to a ping |
 //! | [`hangout`] | [`HangoutData`], [`Attendees`], [`MatchResults`] | What the matching found and the hangout built on it |
 //! | [`error`] | [`AppError`], [`ApiError`] | How a failure reaches the client |
@@ -42,6 +42,42 @@
 //!
 //! A rule that needs the state of the server, such as "the user is a member of
 //! the group", is checked by the handler and answered with `403` or `404`.
+//!
+//! # The model and the JSON
+//!
+//! Where the JSON is not the shape of the model ([`MatchResults`], [`HangoutData`]
+//! and [`AnyPing`]), a private *wire* type has the fields as they are in the
+//! JSON. serde converts to it and from it, and the model takes its OpenAPI
+//! schema from it with `schema_of_wire!`, so the document describes the JSON
+//! that serde writes.
+
+/// Gives `$model` the OpenAPI schema of `$wire`: the schema of the JSON, which
+/// is not the shape of the model (see the [module docs](self)).
+///
+/// `$wire` derives `ToSchema` with `#[schema(as = ...)]`, so its name is the
+/// name of `$model`, and a reference to `$model` points at the schema of
+/// `$wire`.
+macro_rules! schema_of_wire {
+    ($model:ty => $wire:ty) => {
+        impl ::utoipa::PartialSchema for $model {
+            fn schema() -> ::utoipa::openapi::RefOr<::utoipa::openapi::Schema> {
+                <$wire as ::utoipa::PartialSchema>::schema()
+            }
+        }
+
+        impl ::utoipa::ToSchema for $model {
+            fn name() -> ::std::borrow::Cow<'static, str> {
+                <$wire as ::utoipa::ToSchema>::name()
+            }
+
+            fn schemas(
+                schemas: &mut Vec<(String, ::utoipa::openapi::RefOr<::utoipa::openapi::Schema>)>,
+            ) {
+                <$wire as ::utoipa::ToSchema>::schemas(schemas)
+            }
+        }
+    };
+}
 
 pub mod error;
 pub mod group;
@@ -62,7 +98,11 @@ pub use hangout::{
     Timeline, UpdateAttendeeStatusRequest,
 };
 pub use id::{GroupId, Id, PingId, ResponseId, UserId};
-pub use ping::{CancelPingRequest, CreatePingRequest, Ping, PingLifecycle, TriggerMatchRequest};
+pub use ping::{
+    ActiveHangout, AlreadyResponded, AnyPing, CancelPingRequest, Cancelled, Complete,
+    CreatePingRequest, Gathering, MatchOutcome, Matching, NoMatch, Ping, PingSent, PingState,
+    TriggerMatchRequest, UnknownState, UpdateResponseError, VenueConfirmed,
+};
 pub use response::{
     Availability, CreateResponseRequest, Response, ResponsePreferences, UpdateResponseRequest,
 };
