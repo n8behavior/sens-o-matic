@@ -63,21 +63,20 @@ impl MatchingEngine {
     /// use chrono::{DateTime, Utc};
     /// use sens_o_matic::matching::MatchingEngine;
     /// use sens_o_matic::models::{
-    ///     Availability, CreatePingRequest, CreateResponseRequest, Ping, Response,
+    ///     Availability, CreatePingRequest, CreateResponseRequest, GroupId, Ping, Response, UserId,
     /// };
-    /// use uuid::Uuid;
     ///
     /// let at = |time: &str| time.parse::<DateTime<Utc>>().unwrap();
     /// let mut ping = Ping::new(CreatePingRequest {
-    ///     initiator: Uuid::new_v4(),
-    ///     group: Uuid::new_v4(),
+    ///     initiator: UserId::random(),
+    ///     group: GroupId::random(),
     ///     activity_type: "drinks".to_string(),
     ///     rough_timing: "tonight".to_string(),
     ///     vibe: None,
     /// });
     /// let mut say_yes = |earliest: &str, latest: &str| {
     ///     ping.add_response(Response::new(CreateResponseRequest {
-    ///         user: Uuid::new_v4(),
+    ///         user: UserId::random(),
     ///         answer: true,
     ///         availability: Some(Availability {
     ///             earliest: at(earliest),
@@ -104,12 +103,11 @@ impl MatchingEngine {
     /// ```
     /// # use sens_o_matic::matching::MatchingEngine;
     /// # use sens_o_matic::models::{
-    /// #     Availability, CreatePingRequest, CreateResponseRequest, Ping, Response,
+    /// #     Availability, CreatePingRequest, CreateResponseRequest, GroupId, Ping, Response, UserId,
     /// # };
-    /// # use uuid::Uuid;
     /// # let mut ping = Ping::new(CreatePingRequest {
-    /// #     initiator: Uuid::new_v4(),
-    /// #     group: Uuid::new_v4(),
+    /// #     initiator: UserId::random(),
+    /// #     group: GroupId::random(),
     /// #     activity_type: "drinks".to_string(),
     /// #     rough_timing: "tonight".to_string(),
     /// #     vibe: None,
@@ -121,7 +119,7 @@ impl MatchingEngine {
     ///     ("2024-12-15T18:00:00Z", "2024-12-15T20:00:00Z"),
     /// ] {
     ///     ping.add_response(Response::new(CreateResponseRequest {
-    ///         user: Uuid::new_v4(),
+    ///         user: UserId::random(),
     ///         answer: true,
     ///         availability: Some(Availability {
     ///             earliest: earliest.parse().unwrap(),
@@ -201,12 +199,11 @@ impl MatchingEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::Availability;
-    use uuid::Uuid;
+    use crate::models::{Availability, GroupId, PingId, ResponseId, UserId};
 
-    fn create_test_response(user_id: Uuid, earliest: &str, latest: &str) -> Response {
+    fn create_test_response(user_id: UserId, earliest: &str, latest: &str) -> Response {
         Response {
-            id: Uuid::new_v4(),
+            id: ResponseId::random(),
             user: user_id,
             answer: true,
             availability: Some(Availability {
@@ -220,9 +217,9 @@ mod tests {
 
     fn create_test_ping() -> Ping {
         Ping {
-            id: Uuid::new_v4(),
-            initiator: Uuid::new_v4(),
-            group: Uuid::new_v4(),
+            id: PingId::random(),
+            initiator: UserId::random(),
+            group: GroupId::random(),
             activity_type: "drinks".to_string(),
             rough_timing: "tonight".to_string(),
             vibe: None,
@@ -237,14 +234,14 @@ mod tests {
 
         // User 1: 17:00 - 21:00
         let response1 = create_test_response(
-            Uuid::new_v4(),
+            UserId::random(),
             "2024-12-15T17:00:00Z",
             "2024-12-15T21:00:00Z",
         );
 
         // User 2: 18:00 - 22:00
         let response2 = create_test_response(
-            Uuid::new_v4(),
+            UserId::random(),
             "2024-12-15T18:00:00Z",
             "2024-12-15T22:00:00Z",
         );
@@ -277,14 +274,14 @@ mod tests {
 
         // User 1: 16:00 - 18:00
         let response1 = create_test_response(
-            Uuid::new_v4(),
+            UserId::random(),
             "2024-12-15T16:00:00Z",
             "2024-12-15T18:00:00Z",
         );
 
         // User 2: 19:00 - 23:00 (no overlap)
         let response2 = create_test_response(
-            Uuid::new_v4(),
+            UserId::random(),
             "2024-12-15T19:00:00Z",
             "2024-12-15T23:00:00Z",
         );

@@ -9,9 +9,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 use validator::Validate;
 
+use super::{ResponseId, UserId};
 use crate::models::error::AppError;
 
 /// The window of time in which a member can join, both ends in UTC.
@@ -78,9 +78,11 @@ pub struct ResponsePreferences {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Response {
     /// Assigned by the server when the response is created.
-    pub id: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub id: ResponseId,
     /// The member who answered.
-    pub user: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub user: UserId,
     /// `true` for yes, `false` for no.
     pub answer: bool,
     /// When the member is free. A yes can come without it, but then the
@@ -96,7 +98,8 @@ pub struct Response {
 #[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
 pub struct CreateResponseRequest {
     /// The member who answers; must be a member of the group of the ping.
-    pub user: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub user: UserId,
     /// `true` for yes, `false` for no.
     pub answer: bool,
     /// When the member is free.
@@ -114,7 +117,8 @@ pub struct UpdateResponseRequest {
     /// The member who changes the response; must be the one who made it. The
     /// new values are not validated like those of a new response: a negative
     /// `max_distance` or an empty `availability` is accepted.
-    pub user: Uuid,
+    #[schema(value_type = String, format = "uuid")]
+    pub user: UserId,
     /// The new answer.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answer: Option<bool>,
@@ -138,11 +142,10 @@ impl CreateResponseRequest {
     /// # Examples
     ///
     /// ```
-    /// use sens_o_matic::models::{CreateResponseRequest, ResponsePreferences};
-    /// use uuid::Uuid;
+    /// use sens_o_matic::models::{CreateResponseRequest, ResponsePreferences, UserId};
     ///
     /// let request = |max_distance| CreateResponseRequest {
-    ///     user: Uuid::new_v4(),
+    ///     user: UserId::random(),
     ///     answer: true,
     ///     availability: None,
     ///     preferences: Some(ResponsePreferences {
@@ -174,7 +177,7 @@ impl Response {
     /// Creates a response with a new random id, stamped with the current time.
     pub fn new(request: CreateResponseRequest) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: ResponseId::random(),
             user: request.user,
             answer: request.answer,
             availability: request.availability,
@@ -193,10 +196,9 @@ impl Response {
     /// # Examples
     ///
     /// ```
-    /// use sens_o_matic::models::{CreateResponseRequest, Response, UpdateResponseRequest};
-    /// use uuid::Uuid;
+    /// use sens_o_matic::models::{CreateResponseRequest, Response, UpdateResponseRequest, UserId};
     ///
-    /// let user = Uuid::new_v4();
+    /// let user = UserId::random();
     /// let mut response = Response::new(CreateResponseRequest {
     ///     user,
     ///     answer: true,

@@ -37,20 +37,20 @@
 //! use chrono::{TimeZone, Utc};
 //! use sens_o_matic::matching::MatchingEngine;
 //! use sens_o_matic::models::{
-//!     AppError, Availability, CreatePingRequest, CreateResponseRequest, Ping, Response, Timeline,
+//!     AppError, Availability, CreatePingRequest, CreateResponseRequest, GroupId, Ping, Response,
+//!     Timeline, UserId,
 //! };
 //! use sens_o_matic::state_machine::StateMachine;
-//! use uuid::Uuid;
 //!
 //! # fn main() -> Result<(), AppError> {
-//! let initiator = Uuid::new_v4();
-//! let friend = Uuid::new_v4();
+//! let initiator = UserId::random();
+//! let friend = UserId::random();
 //! let at = |hour| Utc.with_ymd_and_hms(2024, 12, 15, hour, 0, 0).unwrap();
 //!
 //! // PingSent: the initiator sends the ping.
 //! let mut ping = Ping::new(CreatePingRequest {
 //!     initiator,
-//!     group: Uuid::new_v4(),
+//!     group: GroupId::random(),
 //!     activity_type: "drinks".to_string(),
 //!     rough_timing: "tonight".to_string(),
 //!     vibe: None,
@@ -101,9 +101,7 @@
 //! # }
 //! ```
 
-use uuid::Uuid;
-
-use crate::models::{AppError, HangoutData, MatchResults, Ping, PingLifecycle, Timeline};
+use crate::models::{AppError, HangoutData, MatchResults, Ping, PingLifecycle, Timeline, UserId};
 
 /// The checks and the transitions of a ping. It has no data: the type is only
 /// a name for the functions.
@@ -138,28 +136,27 @@ impl StateMachine {
     /// # Examples
     ///
     /// ```
-    /// use sens_o_matic::models::{AppError, CreatePingRequest, Ping};
+    /// use sens_o_matic::models::{AppError, CreatePingRequest, GroupId, Ping, UserId};
     /// use sens_o_matic::state_machine::StateMachine;
-    /// use uuid::Uuid;
     ///
-    /// let initiator = Uuid::new_v4();
+    /// let initiator = UserId::random();
     /// let ping = Ping::new(CreatePingRequest {
     ///     initiator,
-    ///     group: Uuid::new_v4(),
+    ///     group: GroupId::random(),
     ///     activity_type: "drinks".to_string(),
     ///     rough_timing: "tonight".to_string(),
     ///     vibe: None,
     /// });
     ///
     /// // The user is checked before the state.
-    /// let stranger = StateMachine::can_trigger_match(&ping, Uuid::new_v4());
+    /// let stranger = StateMachine::can_trigger_match(&ping, UserId::random());
     /// assert!(matches!(stranger, Err(AppError::Forbidden(_))));
     ///
     /// // Nobody has answered yet, so the ping is not in `Gathering`.
     /// let too_early = StateMachine::can_trigger_match(&ping, initiator);
     /// assert!(matches!(too_early, Err(AppError::Conflict(_))));
     /// ```
-    pub fn can_trigger_match(ping: &Ping, user_id: Uuid) -> Result<(), AppError> {
+    pub fn can_trigger_match(ping: &Ping, user_id: UserId) -> Result<(), AppError> {
         if ping.initiator != user_id {
             return Err(AppError::Forbidden(
                 "Only initiator can trigger matching".to_string(),
@@ -236,20 +233,19 @@ impl StateMachine {
     /// # Examples
     ///
     /// ```
-    /// use sens_o_matic::models::{AppError, CreatePingRequest, Ping};
+    /// use sens_o_matic::models::{AppError, CreatePingRequest, GroupId, Ping, UserId};
     /// use sens_o_matic::state_machine::StateMachine;
-    /// use uuid::Uuid;
     ///
-    /// let initiator = Uuid::new_v4();
+    /// let initiator = UserId::random();
     /// let mut ping = Ping::new(CreatePingRequest {
     ///     initiator,
-    ///     group: Uuid::new_v4(),
+    ///     group: GroupId::random(),
     ///     activity_type: "drinks".to_string(),
     ///     rough_timing: "tonight".to_string(),
     ///     vibe: None,
     /// });
     ///
-    /// let stranger = StateMachine::can_cancel(&ping, Uuid::new_v4());
+    /// let stranger = StateMachine::can_cancel(&ping, UserId::random());
     /// assert!(matches!(stranger, Err(AppError::Forbidden(_))));
     ///
     /// assert!(StateMachine::can_cancel(&ping, initiator).is_ok());
@@ -259,7 +255,7 @@ impl StateMachine {
     /// let again = StateMachine::can_cancel(&ping, initiator);
     /// assert!(matches!(again, Err(AppError::Conflict(_))));
     /// ```
-    pub fn can_cancel(ping: &Ping, user_id: Uuid) -> Result<(), AppError> {
+    pub fn can_cancel(ping: &Ping, user_id: UserId) -> Result<(), AppError> {
         if ping.initiator != user_id {
             return Err(AppError::Forbidden(
                 "Only initiator can cancel ping".to_string(),
@@ -290,19 +286,20 @@ impl StateMachine {
     ///
     /// ```
     /// use sens_o_matic::matching::MatchingEngine;
-    /// use sens_o_matic::models::{CreatePingRequest, CreateResponseRequest, Ping, Response};
+    /// use sens_o_matic::models::{
+    ///     CreatePingRequest, CreateResponseRequest, GroupId, Ping, Response, UserId,
+    /// };
     /// use sens_o_matic::state_machine::StateMachine;
-    /// use uuid::Uuid;
     ///
     /// let mut ping = Ping::new(CreatePingRequest {
-    ///     initiator: Uuid::new_v4(),
-    ///     group: Uuid::new_v4(),
+    ///     initiator: UserId::random(),
+    ///     group: GroupId::random(),
     ///     activity_type: "drinks".to_string(),
     ///     rough_timing: "tonight".to_string(),
     ///     vibe: None,
     /// });
     /// ping.add_response(Response::new(CreateResponseRequest {
-    ///     user: Uuid::new_v4(),
+    ///     user: UserId::random(),
     ///     answer: false,
     ///     availability: None,
     ///     preferences: None,
@@ -381,7 +378,7 @@ impl StateMachine {
     /// [`crate::matching`] ignored it when it looked for a common time. The
     /// initiator is an attendee only if they answered their own ping.
     pub fn create_hangout_data(ping: &Ping, timeline: Timeline) -> HangoutData {
-        let attendees: Vec<Uuid> = ping.positive_responses().iter().map(|r| r.user).collect();
+        let attendees: Vec<UserId> = ping.positive_responses().iter().map(|r| r.user).collect();
         HangoutData::new(attendees, timeline)
     }
 }

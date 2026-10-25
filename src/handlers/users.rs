@@ -10,10 +10,9 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use uuid::Uuid;
 use validator::Validate;
 
-use crate::models::{AppError, AppJson, CreateUserRequest, Group, UpdateUserRequest, User};
+use crate::models::{AppError, AppJson, CreateUserRequest, Group, UpdateUserRequest, User, UserId};
 use crate::state::AppState;
 
 /// Creates a user.
@@ -46,7 +45,7 @@ pub async fn create_user(
     get,
     path = "/api/users/{id}",
     params(
-        ("id" = Uuid, Path, description = "User ID")
+        ("id" = inline(UserId), Path, description = "User ID")
     ),
     responses(
         (status = 200, description = "User found", body = User),
@@ -56,7 +55,7 @@ pub async fn create_user(
 )]
 pub async fn get_user(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<UserId>,
 ) -> Result<Json<User>, AppError> {
     state
         .users
@@ -74,7 +73,7 @@ pub async fn get_user(
     patch,
     path = "/api/users/{id}",
     params(
-        ("id" = Uuid, Path, description = "User ID")
+        ("id" = inline(UserId), Path, description = "User ID")
     ),
     request_body = UpdateUserRequest,
     responses(
@@ -86,7 +85,7 @@ pub async fn get_user(
 )]
 pub async fn update_user(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<UserId>,
     AppJson(request): AppJson<UpdateUserRequest>,
 ) -> Result<Json<User>, AppError> {
     request.validate()?;
@@ -106,7 +105,7 @@ pub async fn update_user(
     delete,
     path = "/api/users/{id}",
     params(
-        ("id" = Uuid, Path, description = "User ID")
+        ("id" = inline(UserId), Path, description = "User ID")
     ),
     responses(
         (status = 204, description = "User deleted successfully"),
@@ -116,7 +115,7 @@ pub async fn update_user(
 )]
 pub async fn delete_user(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<UserId>,
 ) -> Result<StatusCode, AppError> {
     state
         .users
@@ -130,7 +129,7 @@ pub async fn delete_user(
     get,
     path = "/api/users/{id}/groups",
     params(
-        ("id" = Uuid, Path, description = "User ID")
+        ("id" = inline(UserId), Path, description = "User ID")
     ),
     responses(
         (status = 200, description = "List of groups the user belongs to", body = Vec<Group>),
@@ -140,7 +139,7 @@ pub async fn delete_user(
 )]
 pub async fn list_user_groups(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<UserId>,
 ) -> Result<Json<Vec<Group>>, AppError> {
     if !state.users.exists(&id) {
         return Err(AppError::NotFound("User".to_string()));

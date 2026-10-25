@@ -12,12 +12,11 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use uuid::Uuid;
 use validator::Validate;
 
 use crate::models::{
-    AppError, AppJson, CreateGroupRequest, Group, JoinGroupRequest, LeaveGroupRequest, Ping,
-    RegenerateInviteRequest,
+    AppError, AppJson, CreateGroupRequest, Group, GroupId, JoinGroupRequest, LeaveGroupRequest,
+    Ping, RegenerateInviteRequest,
 };
 use crate::state::AppState;
 
@@ -51,7 +50,7 @@ pub async fn create_group(
     get,
     path = "/api/groups/{id}",
     params(
-        ("id" = Uuid, Path, description = "Group ID")
+        ("id" = inline(GroupId), Path, description = "Group ID")
     ),
     responses(
         (status = 200, description = "Group found", body = Group),
@@ -61,7 +60,7 @@ pub async fn create_group(
 )]
 pub async fn get_group(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<GroupId>,
 ) -> Result<Json<Group>, AppError> {
     state
         .groups
@@ -111,7 +110,7 @@ pub async fn join_group(
     post,
     path = "/api/groups/{id}/leave",
     params(
-        ("id" = Uuid, Path, description = "Group ID")
+        ("id" = inline(GroupId), Path, description = "Group ID")
     ),
     request_body = LeaveGroupRequest,
     responses(
@@ -122,7 +121,7 @@ pub async fn join_group(
 )]
 pub async fn leave_group(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<GroupId>,
     AppJson(request): AppJson<LeaveGroupRequest>,
 ) -> Result<StatusCode, AppError> {
     state
@@ -140,7 +139,7 @@ pub async fn leave_group(
     post,
     path = "/api/groups/{id}/regenerate-invite",
     params(
-        ("id" = Uuid, Path, description = "Group ID")
+        ("id" = inline(GroupId), Path, description = "Group ID")
     ),
     request_body = RegenerateInviteRequest,
     responses(
@@ -152,7 +151,7 @@ pub async fn leave_group(
 )]
 pub async fn regenerate_invite_code(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<GroupId>,
     AppJson(request): AppJson<RegenerateInviteRequest>,
 ) -> Result<Json<Group>, AppError> {
     let group = state
@@ -192,7 +191,7 @@ pub struct ListPingsQuery {
     get,
     path = "/api/groups/{id}/pings",
     params(
-        ("id" = Uuid, Path, description = "Group ID"),
+        ("id" = inline(GroupId), Path, description = "Group ID"),
         ("state" = Option<String>, Query, description = "Filter by ping state")
     ),
     responses(
@@ -203,7 +202,7 @@ pub struct ListPingsQuery {
 )]
 pub async fn list_group_pings(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<GroupId>,
     Query(query): Query<ListPingsQuery>,
 ) -> Result<Json<Vec<Ping>>, AppError> {
     if !state.groups.exists(&id) {
