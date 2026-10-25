@@ -76,7 +76,7 @@
 //! let results = MatchingEngine::calculate_match(&ping);
 //! StateMachine::transition_to_matching(&mut ping, results);
 //! assert_eq!(ping.lifecycle.state_name(), "matching");
-//! assert!(ping.lifecycle.match_results().unwrap().has_match);
+//! assert!(ping.lifecycle.match_results().unwrap().has_match());
 //!
 //! // VenueConfirmed: the initiator confirms the hangout for the common window.
 //! StateMachine::can_confirm(&ping)?;
@@ -312,7 +312,7 @@ impl StateMachine {
     /// assert!(ping.lifecycle.is_terminal());
     /// ```
     pub fn transition_to_matching(ping: &mut Ping, match_results: MatchResults) {
-        if match_results.has_match {
+        if match_results.has_match() {
             if let PingLifecycle::Gathering { responses } = &ping.lifecycle {
                 ping.lifecycle = PingLifecycle::Matching {
                     responses: responses.clone(),

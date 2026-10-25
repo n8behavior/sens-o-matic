@@ -342,30 +342,26 @@ pub async fn update_attendee_status(
     Path((ping_id, user_id)): Path<(PingId, UserId)>,
     AppJson(request): AppJson<UpdateAttendeeStatusRequest>,
 ) -> Result<Json<Ping>, AppError> {
-    let ping = state
-        .pings
-        .get(&ping_id)
-        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
-
-    // Verify the ping has a hangout and the user is an attendee
-    let hangout = ping
-        .lifecycle
-        .hangout()
-        .ok_or_else(|| AppError::Conflict("Ping does not have an active hangout".to_string()))?;
-
-    if !hangout.is_attendee(user_id) {
-        return Err(AppError::NotFound("Attendee".to_string()));
-    }
-
     let status = request.status;
+
+    // The hangout and the attendee are checked where the status is set, under
+    // the lock of the store: `Attendees::set_status` refuses a stranger.
+    let mut outcome = Ok(());
     let updated = state
         .pings
         .update(&ping_id, |p| {
-            if let Some(h) = p.lifecycle.hangout_mut() {
-                h.update_attendee_status(user_id, status);
-            }
+            outcome = match p.lifecycle.hangout_mut() {
+                Some(hangout) => hangout
+                    .attendees
+                    .set_status(user_id, status)
+                    .map_err(|_| AppError::NotFound("Attendee".to_string())),
+                None => Err(AppError::Conflict(
+                    "Ping does not have an active hangout".to_string(),
+                )),
+            };
         })
         .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+    outcome?;
 
     Ok(Json(updated))
 }
