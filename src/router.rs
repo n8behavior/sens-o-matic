@@ -150,6 +150,9 @@ mod tests {
 
     use super::ApiDoc;
     use crate::models::UserId;
+    use crate::models::value::{
+        ActivityType, Distance, InviteCode, Latitude, Longitude, Name, RoughTiming, Vibe,
+    };
 
     /// The fields that hold an id say `value_type = String, format = "uuid"`
     /// (see [`crate::models::id`]), and `UserId::schema()` says it for the
@@ -181,6 +184,72 @@ mod tests {
             "/MatchResults/properties/ping_id",
         ] {
             assert_eq!(type_and_format(pointer), id, "at {pointer}");
+        }
+    }
+
+    /// The fields that hold a value of [`crate::models::value`] repeat its bounds in
+    /// their `#[schema(...)]` attribute. The document must say what the type
+    /// says, so a bound that is changed in one place and not in the other fails
+    /// here.
+    #[test]
+    fn bounds_are_in_the_schema() {
+        let doc = serde_json::to_value(ApiDoc::openapi()).unwrap();
+        let schemas = &doc["components"]["schemas"];
+        let bounds = |schema: &Value| -> Value {
+            let mut bounds = serde_json::Map::new();
+            for key in ["minLength", "maxLength", "pattern", "minimum", "maximum"] {
+                if let Some(bound) = schema.get(key) {
+                    bounds.insert(key.to_string(), bound.clone());
+                }
+            }
+            Value::Object(bounds)
+        };
+        let fields = [
+            ("/User/properties/name", Name::schema()),
+            ("/CreateUserRequest/properties/name", Name::schema()),
+            ("/UpdateUserRequest/properties/name", Name::schema()),
+            ("/Group/properties/name", Name::schema()),
+            ("/CreateGroupRequest/properties/name", Name::schema()),
+            ("/Group/properties/invite_code", InviteCode::schema()),
+            (
+                "/JoinGroupRequest/properties/invite_code",
+                InviteCode::schema(),
+            ),
+            (
+                "/Ping/allOf/1/properties/activity_type",
+                ActivityType::schema(),
+            ),
+            (
+                "/CreatePingRequest/properties/activity_type",
+                ActivityType::schema(),
+            ),
+            (
+                "/Ping/allOf/1/properties/rough_timing",
+                RoughTiming::schema(),
+            ),
+            (
+                "/CreatePingRequest/properties/rough_timing",
+                RoughTiming::schema(),
+            ),
+            ("/Ping/allOf/1/properties/vibe", Vibe::schema()),
+            ("/CreatePingRequest/properties/vibe", Vibe::schema()),
+            (
+                "/UserPreferences/properties/default_distance",
+                Distance::schema(),
+            ),
+            (
+                "/ResponsePreferences/properties/max_distance",
+                Distance::schema(),
+            ),
+            ("/Location/properties/lat", Latitude::schema()),
+            ("/Location/properties/lng", Longitude::schema()),
+        ];
+        for (pointer, schema) in fields {
+            let in_document = schemas
+                .pointer(pointer)
+                .unwrap_or_else(|| panic!("the document has no schema at {pointer}"));
+            let of_type = serde_json::to_value(schema).unwrap();
+            assert_eq!(bounds(in_document), bounds(&of_type), "at {pointer}");
         }
     }
 }

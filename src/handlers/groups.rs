@@ -12,7 +12,6 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use validator::Validate;
 
 use crate::models::{
     AppError, AppJson, CreateGroupRequest, Group, GroupId, JoinGroupRequest, LeaveGroupRequest,
@@ -37,8 +36,6 @@ pub async fn create_group(
     State(state): State<AppState>,
     AppJson(request): AppJson<CreateGroupRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    request.validate()?;
-
     let group = Group::new(request);
     state.groups.insert(group.id, group.clone());
 
@@ -88,8 +85,6 @@ pub async fn join_group(
     State(state): State<AppState>,
     AppJson(request): AppJson<JoinGroupRequest>,
 ) -> Result<Json<Group>, AppError> {
-    request.validate()?;
-
     let group = state
         .find_group_by_invite_code(&request.invite_code)
         .ok_or_else(|| AppError::NotFound("Group".to_string()))?;

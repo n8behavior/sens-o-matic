@@ -6,11 +6,10 @@
 //! stops working at once). The members of a group are the only people who may
 //! send a [`Ping`](super::Ping) to it or answer one.
 
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use validator::Validate;
 
+use super::value::{InviteCode, Name};
 use super::{GroupId, UserId};
 
 /// A set of users who coordinate meetups together.
@@ -20,22 +19,24 @@ pub struct Group {
     #[schema(value_type = String, format = "uuid")]
     pub id: GroupId,
     /// Display name, 1 to 100 characters.
-    pub name: String,
+    #[schema(value_type = String, min_length = 1, max_length = 100)]
+    pub name: Name,
     /// Ids of the members, without duplicates, in the order they joined. The
     /// creator is the first.
     #[schema(value_type = Vec<String>, format = "uuid")]
     pub members: Vec<UserId>,
     /// The code that lets a person join: 8 letters or digits. Any member can
     /// replace it with a new one, and the old one stops working.
-    pub invite_code: String,
+    #[schema(value_type = String, min_length = 6, max_length = 8, pattern = "^[A-Za-z0-9]+$")]
+    pub invite_code: InviteCode,
 }
 
 /// The body of the request that creates a group.
-#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateGroupRequest {
     /// Display name, 1 to 100 characters.
-    #[validate(length(min = 1, max = 100))]
-    pub name: String,
+    #[schema(value_type = String, min_length = 1, max_length = 100)]
+    pub name: Name,
     /// The user who creates the group and becomes its first member. The server
     /// does not check that this user exists.
     #[schema(value_type = String, format = "uuid")]
@@ -43,14 +44,14 @@ pub struct CreateGroupRequest {
 }
 
 /// The body of the request that adds a user to a group by its invite code.
-#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct JoinGroupRequest {
     /// The user who joins. The server does not check that this user exists.
     #[schema(value_type = String, format = "uuid")]
     pub user_id: UserId,
     /// The invite code of the group: 6 to 8 letters or digits. Case matters.
-    #[validate(regex(path = *INVITE_CODE_REGEX))]
-    pub invite_code: String,
+    #[schema(value_type = String, min_length = 6, max_length = 8, pattern = "^[A-Za-z0-9]+$")]
+    pub invite_code: InviteCode,
 }
 
 /// The body of the request that removes a user from a group.
@@ -69,49 +70,6 @@ pub struct RegenerateInviteRequest {
     pub user_id: UserId,
 }
 
-use std::sync::LazyLock;
-static INVITE_CODE_REGEX: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"^[A-Za-z0-9]{6,8}$").unwrap());
-
-/// Generates a random invite code of 8 characters, each a letter (either case)
-/// or a digit.
-///
-/// A join request accepts 6 to 8 characters (see [`JoinGroupRequest`]), a wider
-/// range than this function produces. The code is not checked for uniqueness
-/// among the groups: with 62⁸ possible codes a collision is unlikely, and if
-/// one happened, joining would reach whichever of the two groups the store
-/// finds first.
-///
-/// # Examples
-///
-/// ```
-/// use sens_o_matic::models::{JoinGroupRequest, UserId, group::generate_invite_code};
-/// use validator::Validate;
-///
-/// let code = generate_invite_code();
-/// assert_eq!(code.len(), 8);
-/// assert!(code.chars().all(|c| c.is_ascii_alphanumeric()));
-///
-/// // A join request validates the shape of the code, not whether a group has it.
-/// let join = |invite_code: &str| JoinGroupRequest {
-///     user_id: UserId::random(),
-///     invite_code: invite_code.to_string(),
-/// };
-/// assert!(join(&code).validate().is_ok());
-/// assert!(join("abc12").validate().is_err()); // 5 characters: too short
-/// assert!(join("abc-1234").validate().is_err()); // not a letter or a digit
-/// ```
-pub fn generate_invite_code() -> String {
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::rng();
-    (0..8)
-        .map(|_| {
-            let idx = rng.random_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect()
-}
-
 impl Group {
     /// Creates a group whose only member is the creator, with a new invite
     /// code.
@@ -123,7 +81,7 @@ impl Group {
     ///
     /// let creator = UserId::random();
     /// let group = Group::new(CreateGroupRequest {
-    ///     name: "Friday crew".to_string(),
+    ///     name: "Friday crew".parse().unwrap(),
     ///     creator_id: creator,
     /// });
     ///
@@ -135,7 +93,7 @@ impl Group {
             id: GroupId::random(),
             name: request.name,
             members: vec![request.creator_id],
-            invite_code: generate_invite_code(),
+            invite_code: InviteCode::random(),
         }
     }
 
@@ -148,7 +106,7 @@ impl Group {
     /// use sens_o_matic::models::{CreateGroupRequest, Group, UserId};
     ///
     /// let mut group = Group::new(CreateGroupRequest {
-    ///     name: "Friday crew".to_string(),
+    ///     name: "Friday crew".parse().unwrap(),
     ///     creator_id: UserId::random(),
     /// });
     /// let friend = UserId::random();
@@ -172,7 +130,7 @@ impl Group {
 
     /// Replaces the invite code with a new one; the old code stops working.
     pub fn regenerate_invite_code(&mut self) {
-        self.invite_code = generate_invite_code();
+        self.invite_code = InviteCode::random();
     }
 
     /// Tells whether the user is a member of the group.

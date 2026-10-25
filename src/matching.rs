@@ -39,9 +39,7 @@
 //! result while the ping is in `Matching`; in any other state it runs the
 //! algorithm again on the current answers.
 
-use chrono::{DateTime, Utc};
-
-use crate::models::{MatchResults, Ping, Response, TimeOverlap};
+use crate::models::{Availability, MatchResults, Ping, Response, TimeOverlap, TimeWindow};
 
 #[cfg(test)]
 use crate::models::PingLifecycle;
@@ -70,18 +68,15 @@ impl MatchingEngine {
     /// let mut ping = Ping::new(CreatePingRequest {
     ///     initiator: UserId::random(),
     ///     group: GroupId::random(),
-    ///     activity_type: "drinks".to_string(),
-    ///     rough_timing: "tonight".to_string(),
+    ///     activity_type: "drinks".parse().unwrap(),
+    ///     rough_timing: "tonight".parse().unwrap(),
     ///     vibe: None,
     /// });
     /// let mut say_yes = |earliest: &str, latest: &str| {
     ///     ping.add_response(Response::new(CreateResponseRequest {
     ///         user: UserId::random(),
     ///         answer: true,
-    ///         availability: Some(Availability {
-    ///             earliest: at(earliest),
-    ///             latest: at(latest),
-    ///         }),
+    ///         availability: Some(Availability::new(at(earliest), at(latest)).unwrap()),
     ///         preferences: None,
     ///     }));
     /// };
@@ -92,9 +87,9 @@ impl MatchingEngine {
     /// assert!(results.has_match);
     ///
     /// let overlap = results.overlap.unwrap();
-    /// assert_eq!(overlap.start, at("2024-12-15T18:00:00Z"));
-    /// assert_eq!(overlap.end, at("2024-12-15T21:00:00Z"));
-    /// assert_eq!(overlap.attendee_count, 2);
+    /// assert_eq!(overlap.start(), at("2024-12-15T18:00:00Z"));
+    /// assert_eq!(overlap.end(), at("2024-12-15T21:00:00Z"));
+    /// assert_eq!(overlap.attendee_count(), 2);
     /// ```
     ///
     /// Windows that only touch have no time in common, and neither has a
@@ -108,8 +103,8 @@ impl MatchingEngine {
     /// # let mut ping = Ping::new(CreatePingRequest {
     /// #     initiator: UserId::random(),
     /// #     group: GroupId::random(),
-    /// #     activity_type: "drinks".to_string(),
-    /// #     rough_timing: "tonight".to_string(),
+    /// #     activity_type: "drinks".parse().unwrap(),
+    /// #     rough_timing: "tonight".parse().unwrap(),
     /// #     vibe: None,
     /// # });
     /// assert!(!MatchingEngine::calculate_match(&ping).has_match);
@@ -121,10 +116,9 @@ impl MatchingEngine {
     ///     ping.add_response(Response::new(CreateResponseRequest {
     ///         user: UserId::random(),
     ///         answer: true,
-    ///         availability: Some(Availability {
-    ///             earliest: earliest.parse().unwrap(),
-    ///             latest: latest.parse().unwrap(),
-    ///         }),
+    ///         availability: Some(
+    ///             Availability::new(earliest.parse().unwrap(), latest.parse().unwrap()).unwrap(),
+    ///         ),
     ///         preferences: None,
     ///     }));
     /// }
@@ -164,40 +158,29 @@ impl MatchingEngine {
     }
 
     fn find_overlap(responses: &[&Response]) -> Option<TimeOverlap> {
-        if responses.is_empty() {
-            return None;
-        }
-
         // Collect all availability windows
-        let windows: Vec<(DateTime<Utc>, DateTime<Utc>)> = responses
+        let windows: Vec<&Availability> = responses
             .iter()
-            .filter_map(|r| r.availability.as_ref().map(|a| (a.earliest, a.latest)))
+            .filter_map(|r| r.availability.as_ref())
             .collect();
-
-        if windows.is_empty() {
-            return None;
-        }
 
         // For 1 window, it's the overlap (the person's availability)
         // For multiple windows, find intersection
-        let overlap_start = windows.iter().map(|(start, _)| *start).max()?;
-        let overlap_end = windows.iter().map(|(_, end)| *end).min()?;
+        let overlap_start = windows.iter().map(|a| a.earliest()).max()?;
+        let overlap_end = windows.iter().map(|a| a.latest()).min()?;
 
-        // Check if there's actually an overlap
-        if overlap_start >= overlap_end {
-            return None;
-        }
+        // A window has a length: if the intersection ends before it starts, or
+        // only touches, there is no overlap.
+        let window = TimeWindow::new(overlap_start, overlap_end).ok()?;
 
-        Some(TimeOverlap {
-            start: overlap_start,
-            end: overlap_end,
-            attendee_count: responses.len() as i32,
-        })
+        Some(TimeOverlap::new(window, windows.len() as u32))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::{DateTime, Utc};
+
     use super::*;
     use crate::models::{Availability, GroupId, PingId, ResponseId, UserId};
 
@@ -206,10 +189,9 @@ mod tests {
             id: ResponseId::random(),
             user: user_id,
             answer: true,
-            availability: Some(Availability {
-                earliest: earliest.parse().unwrap(),
-                latest: latest.parse().unwrap(),
-            }),
+            availability: Some(
+                Availability::new(earliest.parse().unwrap(), latest.parse().unwrap()).unwrap(),
+            ),
             preferences: None,
             updated_at: Utc::now(),
         }
@@ -220,8 +202,8 @@ mod tests {
             id: PingId::random(),
             initiator: UserId::random(),
             group: GroupId::random(),
-            activity_type: "drinks".to_string(),
-            rough_timing: "tonight".to_string(),
+            activity_type: "drinks".parse().unwrap(),
+            rough_timing: "tonight".parse().unwrap(),
             vibe: None,
             lifecycle: PingLifecycle::Gathering { responses: vec![] },
             created_at: Utc::now(),
@@ -258,14 +240,14 @@ mod tests {
         let overlap = result.overlap.unwrap();
         // Overlap should be 18:00 - 21:00
         assert_eq!(
-            overlap.start,
+            overlap.start(),
             "2024-12-15T18:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
         assert_eq!(
-            overlap.end,
+            overlap.end(),
             "2024-12-15T21:00:00Z".parse::<DateTime<Utc>>().unwrap()
         );
-        assert_eq!(overlap.attendee_count, 2);
+        assert_eq!(overlap.attendee_count(), 2);
     }
 
     #[test]

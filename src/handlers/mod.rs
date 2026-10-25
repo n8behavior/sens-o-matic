@@ -3,7 +3,8 @@
 //! A handler is glue. It reads the request, asks the other modules what to do,
 //! and writes the answer:
 //!
-//! 1. validate the body (see the validation in [`crate::models`]);
+//! 1. take the body as it is, because [`crate::models`] has refused a bad one
+//!    already, when it was read (see the validation there);
 //! 2. load the entities from the stores of [`crate::state`], and answer `404`
 //!    if one is missing;
 //! 3. check the rules of the ping with [`crate::state_machine`], and answer

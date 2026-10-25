@@ -42,7 +42,7 @@
 //! };
 //! use sens_o_matic::state_machine::StateMachine;
 //!
-//! # fn main() -> Result<(), AppError> {
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let initiator = UserId::random();
 //! let friend = UserId::random();
 //! let at = |hour| Utc.with_ymd_and_hms(2024, 12, 15, hour, 0, 0).unwrap();
@@ -51,8 +51,8 @@
 //! let mut ping = Ping::new(CreatePingRequest {
 //!     initiator,
 //!     group: GroupId::random(),
-//!     activity_type: "drinks".to_string(),
-//!     rough_timing: "tonight".to_string(),
+//!     activity_type: "drinks".parse().unwrap(),
+//!     rough_timing: "tonight".parse().unwrap(),
 //!     vibe: None,
 //! });
 //! assert_eq!(ping.lifecycle.state_name(), "ping_sent");
@@ -62,7 +62,7 @@
 //! ping.add_response(Response::new(CreateResponseRequest {
 //!     user: friend,
 //!     answer: true,
-//!     availability: Some(Availability { earliest: at(18), latest: at(21) }),
+//!     availability: Some(Availability::new(at(18), at(21))?),
 //!     preferences: None,
 //! }));
 //! assert_eq!(ping.lifecycle.state_name(), "gathering");
@@ -80,7 +80,7 @@
 //!
 //! // VenueConfirmed: the initiator confirms the hangout for the common window.
 //! StateMachine::can_confirm(&ping)?;
-//! let hangout = StateMachine::create_hangout_data(&ping, Timeline { start: at(18), end: at(21) });
+//! let hangout = StateMachine::create_hangout_data(&ping, Timeline::new(at(18), at(21))?);
 //! StateMachine::transition_to_venue_confirmed(&mut ping, hangout);
 //! assert_eq!(ping.lifecycle.state_name(), "venue_confirmed");
 //!
@@ -143,8 +143,8 @@ impl StateMachine {
     /// let ping = Ping::new(CreatePingRequest {
     ///     initiator,
     ///     group: GroupId::random(),
-    ///     activity_type: "drinks".to_string(),
-    ///     rough_timing: "tonight".to_string(),
+    ///     activity_type: "drinks".parse().unwrap(),
+    ///     rough_timing: "tonight".parse().unwrap(),
     ///     vibe: None,
     /// });
     ///
@@ -240,8 +240,8 @@ impl StateMachine {
     /// let mut ping = Ping::new(CreatePingRequest {
     ///     initiator,
     ///     group: GroupId::random(),
-    ///     activity_type: "drinks".to_string(),
-    ///     rough_timing: "tonight".to_string(),
+    ///     activity_type: "drinks".parse().unwrap(),
+    ///     rough_timing: "tonight".parse().unwrap(),
     ///     vibe: None,
     /// });
     ///
@@ -294,8 +294,8 @@ impl StateMachine {
     /// let mut ping = Ping::new(CreatePingRequest {
     ///     initiator: UserId::random(),
     ///     group: GroupId::random(),
-    ///     activity_type: "drinks".to_string(),
-    ///     rough_timing: "tonight".to_string(),
+    ///     activity_type: "drinks".parse().unwrap(),
+    ///     rough_timing: "tonight".parse().unwrap(),
     ///     vibe: None,
     /// });
     /// ping.add_response(Response::new(CreateResponseRequest {

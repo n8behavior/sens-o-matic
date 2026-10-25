@@ -6,8 +6,9 @@
 just test
 ```
 
-`just test` runs `cargo test`: the unit tests in `src/` and the examples in the
-docs of the code. `just check` runs it.
+`just test` runs `cargo test`: the unit tests in `src/`, the tests that go through
+the router in `tests/*.rs`, and the examples in the docs of the code. `just check`
+runs it.
 
 ## The Hurl API suite
 

@@ -30,7 +30,7 @@ use std::{
 
 use std::hash::Hash;
 
-use crate::models::{Group, GroupId, Ping, PingId, User, UserId};
+use crate::models::{Group, GroupId, InviteCode, Ping, PingId, User, UserId};
 
 /// A map from id to item, safe to share between threads.
 ///
@@ -255,17 +255,17 @@ impl AppState {
     ///
     /// let state = AppState::new();
     /// let group = Group::new(CreateGroupRequest {
-    ///     name: "Friday crew".to_string(),
+    ///     name: "Friday crew".parse().unwrap(),
     ///     creator_id: UserId::random(),
     /// });
     /// state.groups.insert(group.id, group.clone());
     ///
     /// let found = state.find_group_by_invite_code(&group.invite_code);
     /// assert_eq!(found.map(|g| g.id), Some(group.id));
-    /// assert!(state.find_group_by_invite_code("nope").is_none());
+    /// assert!(state.find_group_by_invite_code(&"nope12".parse().unwrap()).is_none());
     /// ```
-    pub fn find_group_by_invite_code(&self, code: &str) -> Option<Group> {
-        self.groups.find(|g| g.invite_code == code)
+    pub fn find_group_by_invite_code(&self, code: &InviteCode) -> Option<Group> {
+        self.groups.find(|g| g.invite_code == *code)
     }
 
     /// Returns the pings that were sent to the group, in every state, in no

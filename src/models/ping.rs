@@ -45,10 +45,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use validator::Validate;
 
 use super::hangout::{HangoutData, MatchResults};
 use super::response::Response;
+use super::value::{ActivityType, RoughTiming, Vibe};
 use super::{GroupId, PingId, ResponseId, UserId};
 
 /// The stage of a ping, and the data that belongs to the stage.
@@ -285,13 +285,16 @@ pub struct Ping {
     pub group: GroupId,
     /// What to do, in the words of the initiator ("drinks", "dinner"), 1 to 50
     /// characters.
-    pub activity_type: String,
+    #[schema(value_type = String, min_length = 1, max_length = 50)]
+    pub activity_type: ActivityType,
     /// When, roughly ("tonight", "this afternoon"), 1 to 50 characters. Free
     /// text: the matching works on the availabilities of the answers, not on
     /// this.
-    pub rough_timing: String,
+    #[schema(value_type = String, min_length = 1, max_length = 50)]
+    pub rough_timing: RoughTiming,
     /// The mood of the meetup ("chill"), up to 100 characters.
-    pub vibe: Option<String>,
+    #[schema(value_type = Option<String>, max_length = 100)]
+    pub vibe: Option<Vibe>,
     /// When the ping was sent.
     pub created_at: DateTime<Utc>,
     /// The stage of the ping and the data of that stage.
@@ -300,7 +303,7 @@ pub struct Ping {
 }
 
 /// The body of the request that sends a ping.
-#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreatePingRequest {
     /// The member who sends the ping; must be a member of `group`.
     #[schema(value_type = String, format = "uuid")]
@@ -309,15 +312,15 @@ pub struct CreatePingRequest {
     #[schema(value_type = String, format = "uuid")]
     pub group: GroupId,
     /// What to do, 1 to 50 characters.
-    #[validate(length(min = 1, max = 50))]
-    pub activity_type: String,
+    #[schema(value_type = String, min_length = 1, max_length = 50)]
+    pub activity_type: ActivityType,
     /// When, roughly, 1 to 50 characters.
-    #[validate(length(min = 1, max = 50))]
-    pub rough_timing: String,
+    #[schema(value_type = String, min_length = 1, max_length = 50)]
+    pub rough_timing: RoughTiming,
     /// The mood of the meetup, up to 100 characters.
-    #[validate(length(max = 100))]
+    #[schema(value_type = Option<String>, max_length = 100)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub vibe: Option<String>,
+    pub vibe: Option<Vibe>,
 }
 
 /// The body of the request that cancels a ping.
@@ -339,31 +342,31 @@ pub struct TriggerMatchRequest {
 
 impl Ping {
     /// Creates a ping in the `PingSent` state, with a new random id, stamped
-    /// with the current time, from a request that has passed validation.
+    /// with the current time. The request holds only valid values, so this
+    /// cannot fail.
     ///
     /// # Examples
     ///
     /// The lengths that [`CreatePingRequest`] allows count characters, not
-    /// bytes:
+    /// bytes, and a body that breaks them is refused where it is read:
     ///
     /// ```
     /// use sens_o_matic::models::{CreatePingRequest, GroupId, Ping, UserId};
-    /// use validator::Validate;
     ///
-    /// let request = |activity_type: &str| CreatePingRequest {
-    ///     initiator: UserId::random(),
-    ///     group: GroupId::random(),
-    ///     activity_type: activity_type.to_string(),
-    ///     rough_timing: "tonight".to_string(),
-    ///     vibe: None,
+    /// let body = |activity_type: &str| {
+    ///     serde_json::json!({
+    ///         "initiator": UserId::random(),
+    ///         "group": GroupId::random(),
+    ///         "activity_type": activity_type,
+    ///         "rough_timing": "tonight",
+    ///     })
     /// };
+    /// let parse = |activity_type: &str| serde_json::from_value::<CreatePingRequest>(body(activity_type));
     ///
-    /// assert!(request("").validate().is_err());
-    /// assert!(request(&"é".repeat(51)).validate().is_err());
+    /// assert!(parse("").is_err());
+    /// assert!(parse(&"é".repeat(51)).is_err());
     ///
-    /// let valid = request(&"é".repeat(50)); // 50 characters, 100 bytes
-    /// assert!(valid.validate().is_ok());
-    ///
+    /// let valid = parse(&"é".repeat(50)).unwrap(); // 50 characters, 100 bytes
     /// let ping = Ping::new(valid);
     /// assert_eq!(ping.lifecycle.state_name(), "ping_sent");
     /// ```
@@ -399,8 +402,8 @@ impl Ping {
     /// let mut ping = Ping::new(CreatePingRequest {
     ///     initiator: UserId::random(),
     ///     group: GroupId::random(),
-    ///     activity_type: "drinks".to_string(),
-    ///     rough_timing: "tonight".to_string(),
+    ///     activity_type: "drinks".parse().unwrap(),
+    ///     rough_timing: "tonight".parse().unwrap(),
     ///     vibe: None,
     /// });
     /// assert_eq!(ping.lifecycle.state_name(), "ping_sent");

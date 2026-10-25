@@ -9,28 +9,38 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use validator::Validate;
 
+use super::value::{Distance, TimeWindow, TimeWindowError};
 use super::{ResponseId, UserId};
-use crate::models::error::AppError;
 
 /// The window of time in which a member can join, both ends in UTC.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+///
+/// A window has a length: `latest` is after `earliest`. The type cannot hold
+/// anything else, so a body that breaks the rule is refused when it is read,
+/// whether it creates a response or changes one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(try_from = "AvailabilityWire")]
 pub struct Availability {
     /// The earliest the member can start.
-    pub earliest: DateTime<Utc>,
+    earliest: DateTime<Utc>,
     /// The latest the member can stay until. Must be after `earliest`.
-    pub latest: DateTime<Utc>,
+    latest: DateTime<Utc>,
+}
+
+/// The shape of an [`Availability`] on the wire, before the rule is checked.
+#[derive(Deserialize)]
+struct AvailabilityWire {
+    earliest: DateTime<Utc>,
+    latest: DateTime<Utc>,
 }
 
 impl Availability {
-    /// Checks that the window is not empty, that is, `latest` is strictly after
-    /// `earliest`.
+    /// Makes the availability from the earliest and the latest time.
     ///
     /// # Errors
     ///
-    /// Returns [`AppError::BadRequest`] when `latest` is the same as or before
-    /// `earliest`.
+    /// Returns a [`TimeWindowError`] when `latest` is the same as `earliest`
+    /// or before it.
     ///
     /// # Examples
     ///
@@ -40,18 +50,52 @@ impl Availability {
     ///
     /// let at = |hour| Utc.with_ymd_and_hms(2024, 12, 15, hour, 0, 0).unwrap();
     ///
-    /// assert!(Availability { earliest: at(17), latest: at(21) }.validate_times().is_ok());
-    /// assert!(Availability { earliest: at(21), latest: at(17) }.validate_times().is_err());
-    /// // A window of no length is empty too.
-    /// assert!(Availability { earliest: at(17), latest: at(17) }.validate_times().is_err());
+    /// let availability = Availability::new(at(17), at(21)).unwrap();
+    /// assert_eq!((availability.earliest(), availability.latest()), (at(17), at(21)));
+    ///
+    /// // `latest` before `earliest`, and a window of no length.
+    /// assert!(Availability::new(at(21), at(17)).is_err());
+    /// assert!(Availability::new(at(17), at(17)).is_err());
+    ///
+    /// // A body is refused where it is read.
+    /// let body = |earliest, latest| {
+    ///     format!(r#"{{ "earliest": "{earliest}", "latest": "{latest}" }}"#)
+    /// };
+    /// let json = body("2024-12-15T17:00:00Z", "2024-12-15T21:00:00Z");
+    /// assert!(serde_json::from_str::<Availability>(&json).is_ok());
+    /// let json = body("2024-12-15T21:00:00Z", "2024-12-15T17:00:00Z");
+    /// assert!(serde_json::from_str::<Availability>(&json).is_err());
     /// ```
-    pub fn validate_times(&self) -> Result<(), AppError> {
-        if self.latest <= self.earliest {
-            return Err(AppError::BadRequest(
-                "latest must be after earliest".to_string(),
-            ));
+    pub fn new(earliest: DateTime<Utc>, latest: DateTime<Utc>) -> Result<Self, TimeWindowError> {
+        TimeWindow::new(earliest, latest).map(Self::from)
+    }
+
+    /// The earliest the member can start.
+    pub fn earliest(&self) -> DateTime<Utc> {
+        self.earliest
+    }
+
+    /// The latest the member can stay until; always after
+    /// [`Availability::earliest`].
+    pub fn latest(&self) -> DateTime<Utc> {
+        self.latest
+    }
+}
+
+impl From<TimeWindow> for Availability {
+    fn from(window: TimeWindow) -> Self {
+        Self {
+            earliest: window.start(),
+            latest: window.end(),
         }
-        Ok(())
+    }
+}
+
+impl TryFrom<AvailabilityWire> for Availability {
+    type Error = TimeWindowError;
+
+    fn try_from(wire: AvailabilityWire) -> Result<Self, Self::Error> {
+        Self::new(wire.earliest, wire.latest)
     }
 }
 
@@ -61,8 +105,9 @@ impl Availability {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, Default)]
 pub struct ResponsePreferences {
     /// How far the member will travel, in miles. Must not be negative.
+    #[schema(value_type = Option<f64>, minimum = 0)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_distance: Option<f64>,
+    pub max_distance: Option<Distance>,
     /// Names of the areas the member would like to meet in, free text.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preferred_areas: Option<Vec<String>>,
@@ -95,7 +140,7 @@ pub struct Response {
 }
 
 /// The body of the request that answers a ping.
-#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateResponseRequest {
     /// The member who answers; must be a member of the group of the ping.
     #[schema(value_type = String, format = "uuid")]
@@ -111,12 +156,12 @@ pub struct CreateResponseRequest {
 }
 
 /// The body of the request that changes an answer. A field that is left out
-/// keeps its value.
+/// keeps its value. The new values follow the rules of a new response: a
+/// negative `max_distance`, or an `availability` whose `latest` is not after its
+/// `earliest`, is refused.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateResponseRequest {
-    /// The member who changes the response; must be the one who made it. The
-    /// new values are not validated like those of a new response: a negative
-    /// `max_distance` or an empty `availability` is accepted.
+    /// The member who changes the response; must be the one who made it.
     #[schema(value_type = String, format = "uuid")]
     pub user: UserId,
     /// The new answer.
@@ -128,49 +173,6 @@ pub struct UpdateResponseRequest {
     /// The new preferences. They replace the old ones as a whole.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preferences: Option<ResponsePreferences>,
-}
-
-impl CreateResponseRequest {
-    /// Checks the rules of the request that the `#[validate(...)]` attributes
-    /// cannot express: `max_distance` is not negative, and the availability, if
-    /// there is one, is a window ([`Availability::validate_times`]).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`AppError::BadRequest`] with the rule that is broken.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use sens_o_matic::models::{CreateResponseRequest, ResponsePreferences, UserId};
-    ///
-    /// let request = |max_distance| CreateResponseRequest {
-    ///     user: UserId::random(),
-    ///     answer: true,
-    ///     availability: None,
-    ///     preferences: Some(ResponsePreferences {
-    ///         max_distance: Some(max_distance),
-    ///         ..Default::default()
-    ///     }),
-    /// };
-    ///
-    /// assert!(request(0.5).validate_preferences().is_ok());
-    /// assert!(request(-1.0).validate_preferences().is_err());
-    /// ```
-    pub fn validate_preferences(&self) -> Result<(), AppError> {
-        if let Some(ref prefs) = self.preferences
-            && let Some(distance) = prefs.max_distance
-            && distance < 0.0
-        {
-            return Err(AppError::BadRequest(
-                "max_distance must be non-negative".to_string(),
-            ));
-        }
-        if let Some(ref availability) = self.availability {
-            availability.validate_times()?;
-        }
-        Ok(())
-    }
 }
 
 impl Response {

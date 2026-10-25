@@ -10,7 +10,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use validator::Validate;
 
 use crate::models::{AppError, AppJson, CreateUserRequest, Group, UpdateUserRequest, User, UserId};
 use crate::state::AppState;
@@ -32,8 +31,6 @@ pub async fn create_user(
     State(state): State<AppState>,
     AppJson(request): AppJson<CreateUserRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    request.validate()?;
-
     let user = User::new(request);
     state.users.insert(user.id, user.clone());
 
@@ -88,8 +85,6 @@ pub async fn update_user(
     Path(id): Path<UserId>,
     AppJson(request): AppJson<UpdateUserRequest>,
 ) -> Result<Json<User>, AppError> {
-    request.validate()?;
-
     state
         .users
         .update(&id, |user| user.update(request.clone()))

@@ -10,7 +10,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use validator::Validate;
 
 use crate::models::{
     AppError, AppJson, CreateResponseRequest, PingId, Response, ResponseId, UpdateResponseRequest,
@@ -46,9 +45,6 @@ pub async fn create_response(
     Path(ping_id): Path<PingId>,
     AppJson(request): AppJson<CreateResponseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    request.validate()?;
-    request.validate_preferences()?;
-
     let ping = state
         .pings
         .get(&ping_id)
@@ -90,7 +86,8 @@ pub async fn create_response(
 ///
 /// Only the member who gave the answer can change it, and only while the ping is in
 /// the `ping_sent` or `gathering` state. Only the fields that are sent change. The
-/// new values are not validated like those of a new answer.
+/// new values follow the rules of a new answer: `latest` must be after `earliest`,
+/// and `max_distance` must not be negative.
 #[utoipa::path(
     put,
     path = "/api/pings/{id}/responses/{response_id}",
