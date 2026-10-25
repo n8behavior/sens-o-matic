@@ -1,8 +1,12 @@
 //! The endpoints for the answers to a ping: give one and change one.
 //!
 //! A member answers once, and can change the answer while the ping still takes
-//! answers (see [`crate::models::PingLifecycle::can_add_response`]). The answers are
-//! stored in the ping, not on their own, so the endpoints work on the ping of the path.
+//! answers (see [`AnyPing::add_response`](crate::models::AnyPing::add_response)). The answers are stored in the ping, not on
+//! their own, so the endpoints work on the ping of the path.
+//!
+//! The check of the state and the change run together, under the lock of the store
+//! (see [`crate::models::ping`]). The group is checked before that, so a member who is not
+//! in the group is refused with `403` whatever the state of the ping.
 
 use axum::{
     Json,
@@ -15,7 +19,6 @@ use crate::models::{
     AppError, AppJson, CreateResponseRequest, PingId, Response, ResponseId, UpdateResponseRequest,
 };
 use crate::state::AppState;
-use crate::state_machine::StateMachine;
 
 /// Answers a ping, yes or no.
 ///
@@ -45,25 +48,17 @@ pub async fn create_response(
     Path(ping_id): Path<PingId>,
     AppJson(request): AppJson<CreateResponseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let ping = state
+    // The group of a ping never changes, so it can be read before the update.
+    let group_id = state
         .pings
         .get(&ping_id)
-        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
-
-    // Check state allows adding responses
-    StateMachine::can_add_response(&ping)?;
-
-    // Check for duplicate response
-    if ping.has_user_responded(request.user) {
-        return Err(AppError::Conflict(
-            "User has already responded to this ping".to_string(),
-        ));
-    }
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?
+        .group();
 
     // Verify user is a member of the group
     let group = state
         .groups
-        .get(&ping.group)
+        .get(&group_id)
         .ok_or_else(|| AppError::NotFound("Group".to_string()))?;
 
     if !group.is_member(request.user) {
@@ -73,11 +68,12 @@ pub async fn create_response(
     }
 
     let response = Response::new(request);
-    let response_clone = response.clone();
 
+    // The state, the duplicate and the change are one step, under the lock.
     state
         .pings
-        .update(&ping_id, |p| p.add_response(response_clone));
+        .update(&ping_id, |ping| ping.add_response(response.clone()))
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))??;
 
     Ok((StatusCode::CREATED, Json(response)))
 }
@@ -109,38 +105,11 @@ pub async fn update_response(
     Path((ping_id, response_id)): Path<(PingId, ResponseId)>,
     AppJson(request): AppJson<UpdateResponseRequest>,
 ) -> Result<Json<Response>, AppError> {
-    let ping = state
+    // The state, the owner and the change are one step, under the lock.
+    let updated = state
         .pings
-        .get(&ping_id)
-        .ok_or_else(|| AppError::NotFound("Ping".to_string()))?;
+        .update(&ping_id, |ping| ping.update_response(response_id, request))
+        .ok_or_else(|| AppError::NotFound("Ping".to_string()))??;
 
-    // Check state allows modifying responses
-    StateMachine::can_add_response(&ping)?;
-
-    // Find the response
-    let existing_response = ping
-        .responses()
-        .iter()
-        .find(|r| r.id == response_id)
-        .ok_or_else(|| AppError::NotFound("Response".to_string()))?;
-
-    // Verify the user owns this response
-    if existing_response.user != request.user {
-        return Err(AppError::Forbidden(
-            "User can only update their own response".to_string(),
-        ));
-    }
-
-    // Update the response
-    let mut updated_response = None;
-    state.pings.update(&ping_id, |p| {
-        if let Some(r) = p.find_response_mut(response_id) {
-            r.update(request.clone());
-            updated_response = Some(r.clone());
-        }
-    });
-
-    updated_response
-        .map(Json)
-        .ok_or_else(|| AppError::NotFound("Response".to_string()))
+    Ok(Json(updated))
 }

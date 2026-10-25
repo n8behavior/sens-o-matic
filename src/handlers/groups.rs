@@ -14,8 +14,8 @@ use axum::{
 use serde::Deserialize;
 
 use crate::models::{
-    AppError, AppJson, CreateGroupRequest, Group, GroupId, JoinGroupRequest, LeaveGroupRequest,
-    Ping, RegenerateInviteRequest,
+    AnyPing, AppError, AppJson, CreateGroupRequest, Group, GroupId, JoinGroupRequest,
+    LeaveGroupRequest, PingState, RegenerateInviteRequest,
 };
 use crate::state::AppState;
 
@@ -91,7 +91,10 @@ pub async fn join_group(
 
     let updated = state
         .groups
-        .update(&group.id, |g| g.add_member(request.user_id))
+        .update(&group.id, |g| {
+            g.add_member(request.user_id);
+            g.clone()
+        })
         .ok_or_else(|| AppError::NotFound("Group".to_string()))?;
 
     Ok(Json(updated))
@@ -163,7 +166,10 @@ pub async fn regenerate_invite_code(
 
     let updated = state
         .groups
-        .update(&id, |g| g.regenerate_invite_code())
+        .update(&id, |g| {
+            g.regenerate_invite_code();
+            g.clone()
+        })
         .ok_or_else(|| AppError::NotFound("Group".to_string()))?;
 
     Ok(Json(updated))
@@ -174,7 +180,7 @@ pub async fn regenerate_invite_code(
 pub struct ListPingsQuery {
     /// Keeps only the pings in this state, by the name that the `state` field of a
     /// ping has (`gathering`, `no_match`, …); see
-    /// [`PingLifecycle::state_name`](crate::models::PingLifecycle::state_name).
+    /// [`PingState::as_str`](crate::models::PingState::as_str).
     pub state: Option<String>,
 }
 
@@ -190,7 +196,7 @@ pub struct ListPingsQuery {
         ("state" = Option<String>, Query, description = "Filter by ping state")
     ),
     responses(
-        (status = 200, description = "List of pings", body = Vec<Ping>),
+        (status = 200, description = "List of pings", body = Vec<AnyPing>),
         (status = 404, description = "Group not found", body = crate::models::ApiError)
     ),
     tag = "Groups"
@@ -199,15 +205,19 @@ pub async fn list_group_pings(
     State(state): State<AppState>,
     Path(id): Path<GroupId>,
     Query(query): Query<ListPingsQuery>,
-) -> Result<Json<Vec<Ping>>, AppError> {
+) -> Result<Json<Vec<AnyPing>>, AppError> {
     if !state.groups.exists(&id) {
         return Err(AppError::NotFound("Group".to_string()));
     }
 
     let mut pings = state.get_group_pings(id);
 
-    if let Some(filter_state) = query.state {
-        pings.retain(|p| p.lifecycle.state_name() == filter_state);
+    if let Some(name) = query.state {
+        // A name that is no state matches no ping.
+        match name.parse::<PingState>() {
+            Ok(wanted) => pings.retain(|p| p.state() == wanted),
+            Err(_) => pings.clear(),
+        }
     }
 
     Ok(Json(pings))

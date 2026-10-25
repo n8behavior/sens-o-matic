@@ -4,7 +4,7 @@
 //! ([`Availability`]). The answers of a ping are what [`crate::matching`]
 //! works on. A member answers a ping once and can change the answer until the
 //! initiator triggers the matching; after that the answers are frozen (see
-//! [`crate::state_machine`]).
+//! [`crate::models::ping`]).
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

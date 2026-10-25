@@ -9,9 +9,8 @@
 //! # Map of the modules
 //!
 //! - [`models`]: the entities and the request bodies, with their validation.
-//!   [`models::PingLifecycle`] is the central type: it is the state of a ping.
-//! - [`state_machine`]: who may move a ping from which state to which, and the
-//!   transitions themselves.
+//!   [`models::Ping`] is the central type: a ping in a state, with the rules of
+//!   the lifecycle, and [`models::AnyPing`] is a ping in any state.
 //! - [`matching`]: the overlap algorithm that decides whether a ping has a
 //!   match.
 //! - [`state`]: the in-memory stores that hold the entities.
@@ -20,9 +19,8 @@
 //!
 //! # Where the lifecycle of a ping is documented
 //!
-//! The states and their order are in [`models::ping`]. The rules for each
-//! transition and the walk through a whole lifecycle are in [`state_machine`],
-//! with a doc test that runs it.
+//! The states, the rules for each transition and the walk through a whole lifecycle
+//! are in [`models::ping`], with a doc test that runs it.
 //!
 //! # These docs are also the API docs
 //!
@@ -35,7 +33,6 @@ pub mod matching;
 pub mod models;
 pub mod router;
 pub mod state;
-pub mod state_machine;
 
 pub use router::create_router;
 pub use state::AppState;

@@ -12,7 +12,13 @@
 //! a rule and then writes it back does so in separate steps, and another
 //! request can change the entity in between. The write closure of
 //! [`InMemoryStore::update`] runs under the lock and sees the current value;
-//! put in it whatever must not be raced.
+//! put in it whatever must not be raced, and return the result from it.
+//!
+//! The lifecycle of a ping is the case that matters. A handler does not check
+//! the state of a copy and then write: it calls a method of [`AnyPing`] in the
+//! closure, which checks the state and makes the transition as one step (see
+//! [`crate::models::ping`]). Of two requests that arrive together, the second
+//! finds the state that the first left.
 //!
 //! The stores hand out copies, never references, so a caller never holds a
 //! lock between two calls.
@@ -30,7 +36,7 @@ use std::{
 
 use std::hash::Hash;
 
-use crate::models::{Group, GroupId, InviteCode, Ping, PingId, User, UserId};
+use crate::models::{AnyPing, Group, GroupId, InviteCode, PingId, User, UserId};
 
 /// A map from id to item, safe to share between threads.
 ///
@@ -80,11 +86,12 @@ impl<K: Eq + Hash, V: Clone> InMemoryStore<K, V> {
         self.data.read().unwrap().get(id).cloned()
     }
 
-    /// Changes the item in place with `f`, and returns a copy of the result, or
+    /// Changes the item in place with `f`, and returns what `f` returns, or
     /// `None` if there is no item under the id (and `f` does not run).
     ///
-    /// `f` runs while the store holds its write lock. It must not call the
-    /// same store, which would wait for itself for ever.
+    /// `f` runs while the store holds its write lock, so a check that it makes
+    /// and the change that follows it cannot be separated by another request.
+    /// It must not call the same store, which would wait for itself for ever.
     ///
     /// # Panics
     ///
@@ -100,24 +107,22 @@ impl<K: Eq + Hash, V: Clone> InMemoryStore<K, V> {
     /// let id = UserId::random();
     /// store.insert(id, vec![1, 2]);
     ///
-    /// let updated = store.update(&id, |numbers| numbers.push(3));
+    /// // The closure sees the current value, and its result is the result of `update`.
+    /// let updated = store.update(&id, |numbers| {
+    ///     numbers.push(3);
+    ///     numbers.clone()
+    /// });
     /// assert_eq!(updated, Some(vec![1, 2, 3]));
     /// assert_eq!(store.get(&id), Some(vec![1, 2, 3]));
     ///
-    /// // An unknown id changes nothing.
+    /// // An unknown id changes nothing, and the closure does not run.
     /// assert_eq!(store.update(&UserId::random(), |numbers| numbers.clear()), None);
     /// ```
-    pub fn update<F>(&self, id: &K, f: F) -> Option<V>
+    pub fn update<F, R>(&self, id: &K, f: F) -> Option<R>
     where
-        F: FnOnce(&mut V),
+        F: FnOnce(&mut V) -> R,
     {
-        let mut data = self.data.write().unwrap();
-        if let Some(item) = data.get_mut(id) {
-            f(item);
-            Some(item.clone())
-        } else {
-            None
-        }
+        self.data.write().unwrap().get_mut(id).map(f)
     }
 
     /// Removes the item and returns it, or returns `None` if there is none
@@ -208,7 +213,7 @@ pub struct AppState {
     /// All the groups, by id.
     pub groups: Arc<InMemoryStore<GroupId, Group>>,
     /// All the pings, by id, with their answers and hangouts.
-    pub pings: Arc<InMemoryStore<PingId, Ping>>,
+    pub pings: Arc<InMemoryStore<PingId, AnyPing>>,
 }
 
 impl Default for AppState {
@@ -274,7 +279,7 @@ impl AppState {
     /// # Panics
     ///
     /// Panics if the lock of the ping store is poisoned; see [`InMemoryStore`].
-    pub fn get_group_pings(&self, group_id: GroupId) -> Vec<Ping> {
-        self.pings.filter(|p| p.group == group_id)
+    pub fn get_group_pings(&self, group_id: GroupId) -> Vec<AnyPing> {
+        self.pings.filter(|p| p.group() == group_id)
     }
 }

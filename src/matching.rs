@@ -1,17 +1,18 @@
-//! The overlap algorithm: does a ping have a time that its yes-sayers share?
+//! The overlap algorithm: do the answers of a ping have a time that its yes-sayers share?
 //!
-//! [`MatchingEngine::calculate_match`] reads the answers of a [`Ping`] and
-//! returns [`MatchResults`]. It is a pure function of the ping: it changes
-//! nothing and does not look at the clock. The caller decides what to do with
-//! the result; [`crate::state_machine`] moves the ping to `Matching` or to
-//! `NoMatch`.
+//! [`MatchingEngine::calculate_match`] reads the answers of a ping and returns
+//! [`MatchResults`]. It is a pure function of the id and the answers: it
+//! changes nothing and does not look at the clock. The caller decides what to
+//! do with the result; [`Ping::match_responses`](crate::models::Ping::match_responses)
+//! moves the ping to `Matching` or to `NoMatch`, and takes the function as an
+//! argument, so that [`crate::models`] does not depend on this module.
 //!
 //! # The algorithm
 //!
 //! 1. Keep the answers that say yes *and* give an availability. A yes without
 //!    an availability cannot be placed in time, so it takes no part, and it is
 //!    not counted. (It still makes that member an attendee of the hangout; see
-//!    [`StateMachine::create_hangout_data`](crate::state_machine::StateMachine::create_hangout_data).)
+//!    [`Ping::confirm`](crate::models::Ping::confirm).)
 //! 2. If none is left, there is no match.
 //! 3. Intersect the windows of all that are left: the common window starts at
 //!    the *latest* start and ends at the *earliest* end.
@@ -39,18 +40,16 @@
 //! result while the ping is in `Matching`; in any other state it runs the
 //! algorithm again on the current answers.
 
-use crate::models::{Availability, MatchResults, Ping, Response, TimeOverlap, TimeWindow};
-
-#[cfg(test)]
-use crate::models::PingLifecycle;
+use crate::models::{Availability, MatchResults, PingId, Response, TimeOverlap, TimeWindow};
 
 /// The matching functions. It has no data: the type is only a name for the
 /// functions.
 pub struct MatchingEngine;
 
 impl MatchingEngine {
-    /// Finds the time window that the yes-answers of the ping share; see the
-    /// [module docs](self) for the rules.
+    /// Finds the time window that the yes-answers share; see the
+    /// [module docs](self) for the rules. `ping_id` is the ping that the
+    /// answers belong to; the results say so.
     ///
     /// # Examples
     ///
@@ -65,25 +64,25 @@ impl MatchingEngine {
     /// };
     ///
     /// let at = |time: &str| time.parse::<DateTime<Utc>>().unwrap();
+    /// let say_yes = |earliest: &str, latest: &str| {
+    ///     Response::new(CreateResponseRequest {
+    ///         user: UserId::random(),
+    ///         answer: true,
+    ///         availability: Some(Availability::new(at(earliest), at(latest)).unwrap()),
+    ///         preferences: None,
+    ///     })
+    /// };
     /// let mut ping = Ping::new(CreatePingRequest {
     ///     initiator: UserId::random(),
     ///     group: GroupId::random(),
     ///     activity_type: "drinks".parse().unwrap(),
     ///     rough_timing: "tonight".parse().unwrap(),
     ///     vibe: None,
-    /// });
-    /// let mut say_yes = |earliest: &str, latest: &str| {
-    ///     ping.add_response(Response::new(CreateResponseRequest {
-    ///         user: UserId::random(),
-    ///         answer: true,
-    ///         availability: Some(Availability::new(at(earliest), at(latest)).unwrap()),
-    ///         preferences: None,
-    ///     }));
-    /// };
-    /// say_yes("2024-12-15T17:00:00Z", "2024-12-15T21:00:00Z");
-    /// say_yes("2024-12-15T18:00:00Z", "2024-12-15T22:00:00Z");
+    /// })
+    /// .respond(say_yes("2024-12-15T17:00:00Z", "2024-12-15T21:00:00Z"));
+    /// ping.add_response(say_yes("2024-12-15T18:00:00Z", "2024-12-15T22:00:00Z")).unwrap();
     ///
-    /// let results = MatchingEngine::calculate_match(&ping);
+    /// let results = MatchingEngine::calculate_match(ping.id, ping.responses());
     /// assert!(results.has_match());
     ///
     /// let overlap = results.overlap.unwrap();
@@ -92,55 +91,49 @@ impl MatchingEngine {
     /// assert_eq!(overlap.attendee_count(), 2);
     /// ```
     ///
-    /// Windows that only touch have no time in common, and neither has a
-    /// ping without answers:
+    /// Windows that only touch have no time in common, and neither have no
+    /// answers at all:
     ///
     /// ```
     /// # use sens_o_matic::matching::MatchingEngine;
     /// # use sens_o_matic::models::{
-    /// #     Availability, CreatePingRequest, CreateResponseRequest, GroupId, Ping, Response, UserId,
+    /// #     Availability, CreateResponseRequest, PingId, Response, UserId,
     /// # };
-    /// # let mut ping = Ping::new(CreatePingRequest {
-    /// #     initiator: UserId::random(),
-    /// #     group: GroupId::random(),
-    /// #     activity_type: "drinks".parse().unwrap(),
-    /// #     rough_timing: "tonight".parse().unwrap(),
-    /// #     vibe: None,
-    /// # });
-    /// assert!(!MatchingEngine::calculate_match(&ping).has_match());
+    /// let ping_id = PingId::random();
+    /// assert!(!MatchingEngine::calculate_match(ping_id, &[]).has_match());
     ///
-    /// for (earliest, latest) in [
+    /// let answers: Vec<Response> = [
     ///     ("2024-12-15T16:00:00Z", "2024-12-15T18:00:00Z"),
     ///     ("2024-12-15T18:00:00Z", "2024-12-15T20:00:00Z"),
-    /// ] {
-    ///     ping.add_response(Response::new(CreateResponseRequest {
+    /// ]
+    /// .into_iter()
+    /// .map(|(earliest, latest)| {
+    ///     Response::new(CreateResponseRequest {
     ///         user: UserId::random(),
     ///         answer: true,
     ///         availability: Some(
     ///             Availability::new(earliest.parse().unwrap(), latest.parse().unwrap()).unwrap(),
     ///         ),
     ///         preferences: None,
-    ///     }));
-    /// }
+    ///     })
+    /// })
+    /// .collect();
     ///
-    /// let results = MatchingEngine::calculate_match(&ping);
+    /// let results = MatchingEngine::calculate_match(ping_id, &answers);
     /// assert!(!results.has_match());
     /// assert!(results.overlap.is_none());
     /// ```
-    pub fn calculate_match(ping: &Ping) -> MatchResults {
-        let positive_responses: Vec<&Response> = ping.positive_responses();
-
+    pub fn calculate_match(ping_id: PingId, responses: &[Response]) -> MatchResults {
         // Need at least 1 person with a positive response and availability
         // (initiator is implicitly interested, so 1 responder = 2 people total)
-        let responses_with_availability: Vec<&Response> = positive_responses
+        let responses_with_availability: Vec<&Response> = responses
             .iter()
-            .filter(|r| r.availability.is_some())
-            .copied()
+            .filter(|r| r.answer && r.availability.is_some())
             .collect();
 
         if responses_with_availability.is_empty() {
             return MatchResults {
-                ping_id: ping.id,
+                ping_id,
                 overlap: None,
             };
         }
@@ -148,10 +141,7 @@ impl MatchingEngine {
         // Calculate overlap window (or single window if only 1 response)
         let overlap = Self::find_overlap(&responses_with_availability);
 
-        MatchResults {
-            ping_id: ping.id,
-            overlap,
-        }
+        MatchResults { ping_id, overlap }
     }
 
     fn find_overlap(responses: &[&Response]) -> Option<TimeOverlap> {
@@ -179,12 +169,12 @@ mod tests {
     use chrono::{DateTime, Utc};
 
     use super::*;
-    use crate::models::{Availability, GroupId, PingId, ResponseId, UserId};
+    use crate::models::{Availability, ResponseId, UserId};
 
-    fn create_test_response(user_id: UserId, earliest: &str, latest: &str) -> Response {
+    fn answer(earliest: &str, latest: &str) -> Response {
         Response {
             id: ResponseId::random(),
-            user: user_id,
+            user: UserId::random(),
             answer: true,
             availability: Some(
                 Availability::new(earliest.parse().unwrap(), latest.parse().unwrap()).unwrap(),
@@ -194,43 +184,14 @@ mod tests {
         }
     }
 
-    fn create_test_ping() -> Ping {
-        Ping {
-            id: PingId::random(),
-            initiator: UserId::random(),
-            group: GroupId::random(),
-            activity_type: "drinks".parse().unwrap(),
-            rough_timing: "tonight".parse().unwrap(),
-            vibe: None,
-            lifecycle: PingLifecycle::Gathering { responses: vec![] },
-            created_at: Utc::now(),
-        }
-    }
-
     #[test]
     fn test_overlapping_times() {
-        let mut ping = create_test_ping();
+        let answers = [
+            answer("2024-12-15T17:00:00Z", "2024-12-15T21:00:00Z"),
+            answer("2024-12-15T18:00:00Z", "2024-12-15T22:00:00Z"),
+        ];
 
-        // User 1: 17:00 - 21:00
-        let response1 = create_test_response(
-            UserId::random(),
-            "2024-12-15T17:00:00Z",
-            "2024-12-15T21:00:00Z",
-        );
-
-        // User 2: 18:00 - 22:00
-        let response2 = create_test_response(
-            UserId::random(),
-            "2024-12-15T18:00:00Z",
-            "2024-12-15T22:00:00Z",
-        );
-
-        if let PingLifecycle::Gathering { responses } = &mut ping.lifecycle {
-            responses.push(response1);
-            responses.push(response2);
-        }
-
-        let result = MatchingEngine::calculate_match(&ping);
+        let result = MatchingEngine::calculate_match(PingId::random(), &answers);
         assert!(result.has_match());
         assert!(result.overlap.is_some());
 
@@ -249,29 +210,30 @@ mod tests {
 
     #[test]
     fn test_no_overlap() {
-        let mut ping = create_test_ping();
+        let answers = [
+            answer("2024-12-15T16:00:00Z", "2024-12-15T18:00:00Z"),
+            // No overlap with the first
+            answer("2024-12-15T19:00:00Z", "2024-12-15T23:00:00Z"),
+        ];
 
-        // User 1: 16:00 - 18:00
-        let response1 = create_test_response(
-            UserId::random(),
-            "2024-12-15T16:00:00Z",
-            "2024-12-15T18:00:00Z",
-        );
-
-        // User 2: 19:00 - 23:00 (no overlap)
-        let response2 = create_test_response(
-            UserId::random(),
-            "2024-12-15T19:00:00Z",
-            "2024-12-15T23:00:00Z",
-        );
-
-        if let PingLifecycle::Gathering { responses } = &mut ping.lifecycle {
-            responses.push(response1);
-            responses.push(response2);
-        }
-
-        let result = MatchingEngine::calculate_match(&ping);
+        let result = MatchingEngine::calculate_match(PingId::random(), &answers);
         assert!(!result.has_match());
         assert!(result.overlap.is_none());
+    }
+
+    #[test]
+    fn the_results_name_the_ping() {
+        let ping_id = PingId::random();
+        let result = MatchingEngine::calculate_match(ping_id, &[]);
+        assert_eq!(result.ping_id, ping_id);
+    }
+
+    #[test]
+    fn a_no_takes_no_part() {
+        let mut no = answer("2024-12-15T17:00:00Z", "2024-12-15T21:00:00Z");
+        no.answer = false;
+
+        let result = MatchingEngine::calculate_match(PingId::random(), &[no]);
+        assert!(!result.has_match());
     }
 }

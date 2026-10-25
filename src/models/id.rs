@@ -84,14 +84,14 @@ use utoipa::{
 };
 use uuid::Uuid;
 
-use super::{Group, Ping, Response, User};
+use super::{AnyPing, Group, Response, User};
 
 /// The id of a [`User`].
 pub type UserId = Id<User>;
 /// The id of a [`Group`].
 pub type GroupId = Id<Group>;
-/// The id of a [`Ping`].
-pub type PingId = Id<Ping>;
+/// The id of a ping, that is, of an [`AnyPing`].
+pub type PingId = Id<AnyPing>;
 /// The id of a [`Response`].
 pub type ResponseId = Id<Response>;
 
