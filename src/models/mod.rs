@@ -5,10 +5,10 @@
 //! | [`id`] | [`Id`], [`UserId`], [`GroupId`], [`PingId`], [`ResponseId`] | The id of an entity, one type for each kind |
 //! | [`value`] | [`BoundedText`], [`InviteCode`], [`Distance`], [`Latitude`], [`Longitude`], [`TimeWindow`] | A value that can only be valid |
 //! | [`user`] | [`User`] | A person, with optional preferences |
-//! | [`group`] | [`Group`] | The people a ping is sent to, joined by invite code |
+//! | [`group`] | [`Group`], [`Members`] | The people a ping is sent to, joined by invite code |
 //! | [`ping`] | [`Ping`], [`PingLifecycle`] | One request to meet, and the state it is in |
 //! | [`response`] | [`Response`] | One member's answer to a ping |
-//! | [`hangout`] | [`HangoutData`], [`MatchResults`] | What the matching found and the hangout built on it |
+//! | [`hangout`] | [`HangoutData`], [`Attendees`], [`MatchResults`] | What the matching found and the hangout built on it |
 //! | [`error`] | [`AppError`], [`ApiError`] | How a failure reaches the client |
 //!
 //! # Conventions
@@ -20,6 +20,12 @@
 //!   type of the entity it names, so a [`GroupId`] cannot stand where a
 //!   [`UserId`] is expected. Whether an id refers to an entity that exists is
 //!   checked by the handler that uses it, not by the model.
+//! - A fact is stored once. A value that can be worked out from another is a
+//!   method, not a field ([`MatchResults::has_match`]); a list of users and
+//!   something about each of them is one structure ([`Attendees`]); a list used
+//!   as a set cannot hold a user twice ([`Members`]). Where the JSON says a fact
+//!   twice, the model still stores it once and the JSON is made at the edge,
+//!   with the same fields (see [`hangout`]).
 //! - Every timestamp is UTC and is written in RFC 3339 (`2024-12-15T18:00:00Z`).
 //! - The types derive [`utoipa::ToSchema`], so their doc comments are also the
 //!   descriptions in the OpenAPI document (see [`crate::router`]).
@@ -48,11 +54,12 @@ pub mod value;
 
 pub use error::{ApiError, AppError, AppJson};
 pub use group::{
-    CreateGroupRequest, Group, JoinGroupRequest, LeaveGroupRequest, RegenerateInviteRequest,
+    CreateGroupRequest, Group, JoinGroupRequest, LeaveGroupRequest, Members,
+    RegenerateInviteRequest,
 };
 pub use hangout::{
-    AttendeeStatus, ConfirmHangoutRequest, HangoutData, MatchResults, TimeOverlap, Timeline,
-    UpdateAttendeeStatusRequest,
+    AttendeeStatus, Attendees, ConfirmHangoutRequest, HangoutData, MatchResults, TimeOverlap,
+    Timeline, UpdateAttendeeStatusRequest,
 };
 pub use id::{GroupId, Id, PingId, ResponseId, UserId};
 pub use ping::{CancelPingRequest, CreatePingRequest, Ping, PingLifecycle, TriggerMatchRequest};

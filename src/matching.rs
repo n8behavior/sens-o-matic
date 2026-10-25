@@ -84,7 +84,7 @@ impl MatchingEngine {
     /// say_yes("2024-12-15T18:00:00Z", "2024-12-15T22:00:00Z");
     ///
     /// let results = MatchingEngine::calculate_match(&ping);
-    /// assert!(results.has_match);
+    /// assert!(results.has_match());
     ///
     /// let overlap = results.overlap.unwrap();
     /// assert_eq!(overlap.start(), at("2024-12-15T18:00:00Z"));
@@ -107,7 +107,7 @@ impl MatchingEngine {
     /// #     rough_timing: "tonight".parse().unwrap(),
     /// #     vibe: None,
     /// # });
-    /// assert!(!MatchingEngine::calculate_match(&ping).has_match);
+    /// assert!(!MatchingEngine::calculate_match(&ping).has_match());
     ///
     /// for (earliest, latest) in [
     ///     ("2024-12-15T16:00:00Z", "2024-12-15T18:00:00Z"),
@@ -124,7 +124,7 @@ impl MatchingEngine {
     /// }
     ///
     /// let results = MatchingEngine::calculate_match(&ping);
-    /// assert!(!results.has_match);
+    /// assert!(!results.has_match());
     /// assert!(results.overlap.is_none());
     /// ```
     pub fn calculate_match(ping: &Ping) -> MatchResults {
@@ -142,18 +142,15 @@ impl MatchingEngine {
             return MatchResults {
                 ping_id: ping.id,
                 overlap: None,
-                has_match: false,
             };
         }
 
         // Calculate overlap window (or single window if only 1 response)
         let overlap = Self::find_overlap(&responses_with_availability);
-        let has_match = overlap.is_some();
 
         MatchResults {
             ping_id: ping.id,
             overlap,
-            has_match,
         }
     }
 
@@ -234,7 +231,7 @@ mod tests {
         }
 
         let result = MatchingEngine::calculate_match(&ping);
-        assert!(result.has_match);
+        assert!(result.has_match());
         assert!(result.overlap.is_some());
 
         let overlap = result.overlap.unwrap();
@@ -274,7 +271,7 @@ mod tests {
         }
 
         let result = MatchingEngine::calculate_match(&ping);
-        assert!(!result.has_match);
+        assert!(!result.has_match());
         assert!(result.overlap.is_none());
     }
 }
