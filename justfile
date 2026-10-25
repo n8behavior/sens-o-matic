@@ -2,8 +2,10 @@
 default:
     @just --list
 
-# Run all checks (format + clippy + tests) — matches CI
-check: fmt-check lint test
+# ANCHOR: check
+# Run all checks (format + clippy + tests + book) — matches CI
+check: fmt-check lint test book-test
+# ANCHOR_END: check
 
 # Lint with clippy (warnings are errors)
 lint:
@@ -47,6 +49,31 @@ test-api: build
       sleep 0.1
     done
     just hurl-test
+
+# Build the book into book/book
+book:
+    mdbook build book
+
+# Test the book and guard it against a silent hole (see book/src/how-this-book-includes-code.md)
+book-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mdbook test book
+    # mdbook exits with success when an anchor or a file is missing, so the
+    # guard builds the book in a scratch folder and looks for the symptoms.
+    out=$(mktemp -d)
+    trap 'rm -rf "$out"' EXIT
+    log=$(mdbook build book --dest-dir "$out" 2>&1)
+    if grep -qE '^\s*(ERROR|WARN)\b' <<< "$log"; then
+      echo "$log" >&2
+      echo "::error::mdbook reported an error or a warning while it built the book. A common cause is an include of a file that is missing. See book/src/how-this-book-includes-code.md" >&2
+      exit 1
+    fi
+    if empty=$(grep -rPzl --include='*.html' '<code[^>]*>\s*</code>' "$out"); then
+      echo "$empty" >&2
+      echo "::error::The pages above have an empty code block. An include names an anchor that its file does not have, and mdbook does not fail on that. See book/src/how-this-book-includes-code.md" >&2
+      exit 1
+    fi
 
 # Check formatting
 fmt-check:

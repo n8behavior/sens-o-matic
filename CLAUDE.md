@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Rules for a session that works in this repository. Look up what you need, when you need it; do not read all the docs first. `just` lists the commands, `cargo doc --open` shows the module docs and the function docs, and the book holds the concepts and the usage.
+Rules for a session that works in this repository. Look up what you need, when you need it; do not read all the docs first. `just` lists the commands, `cargo doc --open` shows the module docs and the function docs, and the book (in `book/`; `just book` builds it) holds the concepts and the usage.
 
 ## Work
 
