@@ -18,6 +18,7 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - uses: extractions/setup-just@v2
+      - uses: ./.github/actions/setup-mdbook
       - run: just validate-version ${{ github.event.release.tag_name }}
       - run: just check
 

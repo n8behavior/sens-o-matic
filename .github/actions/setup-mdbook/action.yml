@@ -1,0 +1,30 @@
+name: Install mdbook
+description: >-
+  Install mdbook for `just check`, at the version and with the SHA-256 that
+  deploy/session/Dockerfile pins (the ARG lines MDBOOK_VERSION and
+  MDBOOK_SHA256), so that the CI and the session image run the same mdbook.
+  The job checks out the repository before it uses this action.
+
+runs:
+  using: composite
+  steps:
+    - name: Install mdbook
+      shell: bash
+      run: |
+        set -euo pipefail
+        dockerfile="$GITHUB_WORKSPACE/deploy/session/Dockerfile"
+        pin() { sed -n "s/^ARG $1=//p" "$dockerfile"; }
+        version=$(pin MDBOOK_VERSION)
+        sha256=$(pin MDBOOK_SHA256)
+        if [ -z "$version" ] || [ -z "$sha256" ]; then
+          echo "::error file=deploy/session/Dockerfile::The ARG lines MDBOOK_VERSION and MDBOOK_SHA256 are missing. The action .github/actions/setup-mdbook reads the pin of mdbook from them."
+          exit 1
+        fi
+        bin="$RUNNER_TEMP/mdbook-bin"
+        mkdir -p "$bin"
+        curl -sSfL -o "$RUNNER_TEMP/mdbook.tar.gz" \
+          "https://github.com/rust-lang/mdBook/releases/download/v${version}/mdbook-v${version}-x86_64-unknown-linux-musl.tar.gz"
+        echo "${sha256}  $RUNNER_TEMP/mdbook.tar.gz" | sha256sum -c -
+        tar -xzf "$RUNNER_TEMP/mdbook.tar.gz" -C "$bin" mdbook
+        echo "$bin" >> "$GITHUB_PATH"
+        "$bin/mdbook" --version

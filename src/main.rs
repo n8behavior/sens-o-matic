@@ -6,6 +6,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use sens_o_matic::{AppState, create_router};
 
+// ANCHOR: main
 #[tokio::main]
 async fn main() {
     // Initialize tracing
@@ -32,3 +33,4 @@ async fn main() {
     let listener = TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
+// ANCHOR_END: main
