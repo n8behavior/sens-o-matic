@@ -1,6 +1,6 @@
 # Getting started
 
-You need Rust 1.93 or newer (edition 2024) and
+You need a recent stable Rust (edition 2024) and
 [just](https://github.com/casey/just).
 
 Build the server:

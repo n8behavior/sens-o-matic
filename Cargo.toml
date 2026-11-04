@@ -9,7 +9,6 @@ repository = "https://github.com/n8behavior/sens-o-matic"
 # `documentation`, not `homepage`: see "The hosted site" in book/src/development.md.
 documentation = "https://n8behavior.github.io/sens-o-matic/"
 readme = "README.md"
-rust-version = "1.93"
 keywords = ["meetup", "coordination", "api", "axum", "social"]
 categories = ["web-programming::http-server"]
 exclude = ["docs/", "tests/", "justfile", "book/"]
