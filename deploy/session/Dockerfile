@@ -1,18 +1,19 @@
 # The session image of this repository. It is the session image of riff
-# with the toolchain of the CI (Rust 1.93, clippy and rustfmt, and the
-# musl target of `just build-release`), with hurl, the tool of
-# `just test-api`, and with mdbook, the tool of the book. It holds no
-# riff and no secret.
+# with a current stable Rust (clippy and rustfmt, and the musl target of
+# `just build-release`), with hurl, the tool of `just test-api`, and
+# with mdbook, the tool of the book. It holds no riff and no secret.
 #
 # The workflow "Session image" builds it on each change of this folder,
 # and riff.toml pins its digest. FROM pins the image of riff by digest,
 # not by tag: a build of this folder gives the same toolchain each time.
 FROM ghcr.io/como-technologies/riff-session@sha256:57413e21fc507e6ace6af4f695b3a873218b29f8a94ff66868ae27b178a7ff20
 
-# The channel is the toolchain of `ci.yml` and the rust-version of
-# Cargo.toml. The hurl version is pinned with the checksum of its .deb,
+# The channel is an explicit version, so that this folder says what the
+# image has. No rule ties it to `ci.yml` or to Cargo.toml, and neither
+# pins a Rust version. A newer Rust means a new value here and a new pin
+# in riff.toml. The hurl version is pinned with the checksum of its .deb,
 # the mdbook version with the checksum of its tarball.
-ARG RUST_CHANNEL=1.93
+ARG RUST_CHANNEL=1.99.1
 ARG HURL_VERSION=8.0.1
 ARG HURL_SHA256=e76e6c0957f83f9b761416452871554d0f068384b6cd004bff82dd8795c62225
 ARG MDBOOK_VERSION=0.5.4

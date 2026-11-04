@@ -3,7 +3,7 @@
 # image pin. The riff book explains the sources in "Trust a package
 # source" (how-it-works.md).
 [session]
-image = "ghcr.io/n8behavior/sens-o-matic-session@sha256:9c5b31716e52416e227753bc4d6e63ae9456a709b0c82f8f27077778510b5968"
+image = "ghcr.io/n8behavior/sens-o-matic-session@sha256:b4f485007160c9ab11082a2888ea51db818148584e285a99ce6df9457ecc4fd4"
 sources = ["crates.io", "index.crates.io", "static.crates.io"]
 
 # The env of a session: the cargo home and the sccache of the cargo
