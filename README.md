@@ -13,7 +13,8 @@ cargo install sens-o-matic
 
 ## Build and run
 
-Requires Rust 1.93+ (edition 2024) and [just](https://github.com/casey/just).
+What you need is in
+[Getting started](https://n8behavior.github.io/sens-o-matic/getting-started.html).
 
 ```bash
 just build
