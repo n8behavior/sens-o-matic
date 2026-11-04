@@ -122,8 +122,9 @@ pub trait GroupCipher: Sized {
 
     /// What others need to hand this device keys: an MLS key package, a public
     /// key for HPKE. This is the cipher's part of a join request (D11): it goes
-    /// in the clear into the `JoinRequest` of a joiner or the `AddDevice` of a
-    /// new device of a known user, so it must hold nothing secret.
+    /// in the clear into the `Create` of the founder, the `JoinRequest` of a joiner
+    /// or the `AddDevice` of a new device of a known user, so it must hold
+    /// nothing secret.
     ///
     /// The device calls it each time it needs one, so a cipher with one-time
     /// packages makes a fresh one on each call.

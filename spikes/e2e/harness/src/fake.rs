@@ -200,7 +200,7 @@ impl GroupCipher for FakeCipher {
             Ok((addressees, epochs))
         };
         match event.change {
-            GroupChange::Create => {
+            GroupChange::Create { .. } => {
                 let mut r = Reader::new(event.material.as_slice());
                 let epoch = r.u32().map_err(invalid)?;
                 self.learn([epoch]);
