@@ -11,7 +11,7 @@ documentation = "https://n8behavior.github.io/sens-o-matic/"
 readme = "README.md"
 keywords = ["meetup", "coordination", "api", "axum", "social"]
 categories = ["web-programming::http-server"]
-exclude = ["docs/", "tests/", "justfile", "book/"]
+exclude = ["docs/", "tests/", "justfile", "book/", "spikes/"]
 
 [dependencies]
 axum = "0.8.8"
