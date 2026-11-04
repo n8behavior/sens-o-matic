@@ -37,7 +37,11 @@ use crate::{
 pub enum GroupChange {
     /// The first event of the log: the author is the founder, and the group
     /// exists from here.
-    Create,
+    Create {
+        /// What the protocol needs to hand the founder keys later, as in
+        /// `JoinRequest`: the roster has no other record of the founder.
+        introduction: Material,
+    },
     /// A member makes a single-use code that a person can pass on (D11).
     Invite {
         /// The lookup name of the invite.
@@ -84,8 +88,9 @@ pub enum GroupChange {
 impl GroupChange {
     fn encode(&self, w: &mut Writer) {
         match self {
-            Self::Create => {
+            Self::Create { introduction } => {
                 w.u8(0);
+                introduction.encode(w);
             }
             Self::Invite { code } => {
                 w.u8(1);
@@ -122,7 +127,9 @@ impl GroupChange {
 
     fn decode(r: &mut Reader<'_>) -> Result<Self, DecodeError> {
         Ok(match r.u8()? {
-            0 => Self::Create,
+            0 => Self::Create {
+                introduction: Material::decode(r)?,
+            },
             1 => Self::Invite {
                 code: InviteCode::decode(r)?,
             },
@@ -248,7 +255,9 @@ mod tests {
         let code = InviteCode::generate(&mut rng);
         let key = DeviceKey::from_bytes([7; 32]);
         let changes = [
-            GroupChange::Create,
+            GroupChange::Create {
+                introduction: Material::from(&b"kp"[..]),
+            },
             GroupChange::Invite { code },
             GroupChange::Revoke { code },
             GroupChange::JoinRequest {

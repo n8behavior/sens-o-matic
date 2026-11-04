@@ -9,8 +9,9 @@
 //! The rules are small and are all here:
 //!
 //! 1. **The first event creates the group.** `Create` at position 0 makes the
-//!    author the first device of the first user. Any other event before that is
-//!    refused, and a second `Create` is refused.
+//!    author the first device of the first user, with the introduction it
+//!    carries. Any other event before that is refused, and a second `Create` is
+//!    refused.
 //! 2. **An event of a device that no user vouches for is ignored.** A device is
 //!    vouched for by the `Create` (the founder), by the `Approve` of its join
 //!    request, or by an `AddDevice` of a device of the same user. The one
@@ -51,7 +52,8 @@
 //! let ask = |code| GroupChange::JoinRequest { code, introduction: Material::empty() };
 //!
 //! let mut state = GroupState::default();
-//! state.apply(Seq(0), &alice, &GroupChange::Create)?;
+//! let create = GroupChange::Create { introduction: Material::empty() };
+//! state.apply(Seq(0), &alice, &create)?;
 //! state.apply(Seq(1), &alice, &GroupChange::Invite { code })?;
 //!
 //! // Bob asks first, so he holds the code; Carol's later request is refused.
@@ -78,7 +80,7 @@ use thiserror::Error;
 
 use crate::{
     codec::Writer,
-    ids::{InviteCode, Material, Seq, UserId},
+    ids::{InviteCode, Seq, UserId},
     keys::{DeviceKey, EventHash},
     payload::{GroupChange, PingOpen},
     roster::{DeviceInfo, Roster},
@@ -193,18 +195,18 @@ impl GroupState {
         author: &DeviceKey,
         change: &GroupChange,
     ) -> Result<(), Refusal> {
-        if self.roster.is_empty() && !matches!(change, GroupChange::Create) {
+        if self.roster.is_empty() && !matches!(change, GroupChange::Create { .. }) {
             return Err(Refusal::NoGroup);
         }
         let member = self.roster.user_of(author);
         match change {
-            GroupChange::Create => {
+            GroupChange::Create { introduction } => {
                 if seq != Seq::FIRST || !self.roster.is_empty() {
                     return Err(Refusal::CreateNotFirst);
                 }
                 let founder = Arc::new(DeviceInfo {
                     key: *author,
-                    introduction: Material::empty(),
+                    introduction: introduction.clone(),
                 });
                 self.roster.vouch(UserId::admitted_at(seq), founder);
                 Ok(())
@@ -421,7 +423,7 @@ mod tests {
                 code: InviteCode::generate(&mut rng),
                 next: 0,
             };
-            fixture.apply(fixture.alice, GroupChange::Create).unwrap();
+            fixture.apply(fixture.alice, fixture.create()).unwrap();
             fixture
         }
 
@@ -429,6 +431,12 @@ mod tests {
             let seq = Seq(self.next);
             self.next += 1;
             self.state.apply(seq, &author, &change)
+        }
+
+        fn create(&self) -> GroupChange {
+            GroupChange::Create {
+                introduction: Material::empty(),
+            }
         }
 
         fn ask(&self) -> GroupChange {
@@ -444,10 +452,7 @@ mod tests {
         let mut f = Fixture::new();
         let before = f.state.digest();
         assert_eq!(f.apply(f.bob, GroupChange::Leave), Err(Refusal::Unvouched));
-        assert_eq!(
-            f.apply(f.alice, GroupChange::Create),
-            Err(Refusal::CreateNotFirst)
-        );
+        assert_eq!(f.apply(f.alice, f.create()), Err(Refusal::CreateNotFirst));
         assert_eq!(f.state.digest(), before);
     }
 

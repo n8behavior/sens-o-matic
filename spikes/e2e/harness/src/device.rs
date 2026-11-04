@@ -841,8 +841,9 @@ impl<C: GroupCipher> Device<C> {
                 if group_head != Seq::FIRST {
                     return Err(Skip::AlreadyFounded);
                 }
+                let introduction = self.cipher.introduction();
                 let material = self.cipher.create_group(self.group)?;
-                group(GroupChange::Create, material)
+                group(GroupChange::Create { introduction }, material)
             }
             Intent::Invite(code) => {
                 if !member {

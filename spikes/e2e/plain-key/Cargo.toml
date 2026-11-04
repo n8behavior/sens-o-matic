@@ -1,0 +1,42 @@
+[package]
+name = "e2e-plain-key"
+version = "0.0.0"
+edition = "2024"
+description = "The plain group key behind GroupCipher, a candidate of the E2E spike (D9 of #61)"
+license = "MIT"
+publish = false
+
+# Its own workspace, so that the root Cargo.toml, `just check` and the CI job
+# `Check` do not see this crate.
+[workspace]
+
+[dependencies]
+e2e-harness = { path = "../harness" }
+# The primitives, each from a well-known crate. No default features: the OS
+# randomness is not compiled in, every random value comes from the generator of
+# the harness.
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+hpke = { version = "0.15.1", default-features = false, features = ["alloc", "x25519", "chacha"] }
+sha2 = "0.11.1"
+rand = { version = "0.9.5", default-features = false }
+# The version of rand_core that hpke asks its generator from.
+rand_core10 = { package = "rand_core", version = "0.10.1", default-features = false }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+wildcard_enum_match_arm = "warn"
+
+# The signatures of a run of 90 devices are slow without optimization. Only the
+# dependencies are optimized, so the crate stays easy to debug.
+[profile.dev.package."*"]
+opt-level = 3
+
+# For `cargo check --target wasm32-unknown-unknown` only: the harness builds `rand`
+# with its default features, `rand` pulls in `getrandom` 0.3, and that crate
+# stops with a compile error on this target unless its `wasm_js` feature is on.
+# This crate never asks for the OS randomness; the generator is injected.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
