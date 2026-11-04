@@ -20,9 +20,10 @@
 //! | [`Log::restart`] | a new instance of the server: nothing in memory, the objects stay |
 //!
 //! The conditional create is the only lock: two instances may append to one log,
-//! and the loser of a race retries at the next position. The trait has no
-//! "head" call because a cold writer finds the head by listing, and a hint is
-//! never the truth (D7).
+//! and the loser of a race retries at the next position. An append needs no
+//! head call, because a cold writer finds the head by listing and a hint is
+//! never the truth (D7); [`Log::head`] is for tests and for wrappers, and the
+//! provided method reads the whole log.
 //!
 //! # A wake carries no payload
 //!
@@ -111,6 +112,15 @@ pub trait Log {
     /// when `from` is the head or past it.
     fn read(&self, caller: &DeviceKey, log: &LogId, from: Seq) -> Vec<Vec<u8>>;
 
+    /// The position the next append needs: the number of events of `log`.
+    ///
+    /// The provided method reads the whole log. An implementation that can do
+    /// better overrides it; on an object store that is the hint and a list from
+    /// it (D7).
+    fn head(&self, caller: &DeviceKey, log: &LogId) -> Seq {
+        Seq(self.read(caller, log, Seq::FIRST).len() as u64)
+    }
+
     /// Delete `log` as a whole (retention, D8). Nothing is truncated.
     fn delete(&mut self, log: &LogId);
 
@@ -190,6 +200,10 @@ impl Log for MemoryLog {
             .get(from.index()..)
             .map(<[_]>::to_vec)
             .unwrap_or_default()
+    }
+
+    fn head(&self, _caller: &DeviceKey, log: &LogId) -> Seq {
+        Seq(self.entries(log).len() as u64)
     }
 
     fn delete(&mut self, log: &LogId) {

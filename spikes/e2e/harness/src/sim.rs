@@ -487,7 +487,7 @@ impl<C: GroupCipher, L: Log> World<C, L> {
                 text: b"rival".to_vec(),
             },
         };
-        self.slots[rival.0].device.sync(&self.server);
+        self.sync(rival);
         let act = self.slots[rival.0].device.run(filler, &mut self.server);
         if let Act::Written(_) = act {
             self.stats.rivals += 1;

@@ -1037,13 +1037,13 @@ pub fn evil_server_reorder<C: GroupCipher>(seed: Seed) -> Report {
 ///
 /// Asserts the finding of [`crate::evil`]: looking at the log alone nobody
 /// notices, in a busy or a quiet group; with gossip every device of a busy group
-/// does, and in a quiet group at least the half that falls behind.
+/// does, and in a quiet group the half that falls behind (the writer's half is
+/// not affected: it sees what an honest server would show).
 pub fn evil_server_fork<C: GroupCipher>(seed: Seed) -> Report {
     evil_report::<C>("evil_server_fork", seed, Kind::Fork, |d| {
         let expected = match (d.shape, d.vigilance) {
             (_, Vigilance::InBand) => d.alarmed == 0 && d.affected > 0,
-            (Shape::Busy, Vigilance::Gossip) => d.all_noticed(),
-            (Shape::Quiet, Vigilance::Gossip) => d.alarmed > 0,
+            (_, Vigilance::Gossip) => d.all_noticed(),
         };
         assert!(
             expected,
@@ -1087,7 +1087,7 @@ pub fn same_seed_twice_gives_identical_logs<C: GroupCipher>() {
             );
         }
     }
-    let other = thirty_members_three_devices::<C>(Seed(seed.0 + 1));
+    let other = thirty_members_three_devices::<C>(Seed(seed.0.wrapping_add(1)));
     assert_ne!(
         first.logs, other.logs,
         "same_seed_twice_gives_identical_logs: a run with another seed stored the same bytes: the seed does not reach the keys"

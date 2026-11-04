@@ -36,8 +36,9 @@
 //! - **Fork** is not caught in band, busy or quiet: each device sees a log whose
 //!   chain is intact, and no event is ever shown to both sides. With gossip every
 //!   device in a busy group raises an alarm within a few rounds. In a quiet
-//!   group only the half that falls behind learns (it hears a head it cannot
-//!   read); the writer's half cannot tell a fork from a reader that is slow.
+//!   group the writer's half sees what an honest server would show, so only the
+//!   other half is affected: it hears a head it cannot read, and with gossip it
+//!   learns, while the writer's half never learns that it is on a fork.
 //!
 //! So the hash chain closes drop-in-the-middle and reorder, but not hold-back of
 //! a silent reader and not a fork. For those, devices must compare heads outside
@@ -102,6 +103,7 @@ pub enum Attack {
 #[derive(Debug)]
 struct Branch<L> {
     log: LogId,
+    at: Seq,
     members: BTreeSet<DeviceKey>,
     store: L,
 }
@@ -158,6 +160,7 @@ impl<L: Log + Default> EvilLog<L> {
             }
             self.branch = Some(Branch {
                 log,
+                at,
                 members: branch,
                 store,
             });
@@ -183,14 +186,21 @@ impl<L: Log + Default> EvilLog<L> {
             .is_some_and(|branch| branch.log == *log && branch.members.contains(caller))
     }
 
-    fn touches_fork(&self, log: &LogId) -> bool {
-        self.branch
-            .as_ref()
-            .is_some_and(|branch| branch.log == *log)
-    }
-
-    fn head(&self, caller: &DeviceKey, log: &LogId) -> Seq {
-        Seq(self.route(caller, log).read(caller, log, Seq::FIRST).len() as u64)
+    /// A caller of the forked log is affected when the other side has events
+    /// past the fork that the caller's side lacks: an honest log would have
+    /// shown it a different history.
+    fn note_fork(&self, caller: &DeviceKey, log: &LogId) {
+        let Some(branch) = self.branch.as_ref().filter(|branch| branch.log == *log) else {
+            return;
+        };
+        let other = if branch.members.contains(caller) {
+            &self.main
+        } else {
+            &branch.store
+        };
+        if other.head(caller, log) > branch.at {
+            self.affected.borrow_mut().insert(*caller);
+        }
     }
 
     fn route(&self, caller: &DeviceKey, log: &LogId) -> &L {
@@ -219,9 +229,7 @@ impl<L: Log + Default> Log for EvilLog<L> {
         expected: Seq,
         entry: Vec<u8>,
     ) -> Result<(), Conflict> {
-        if self.touches_fork(log) {
-            self.affected.borrow_mut().insert(*caller);
-        }
+        self.note_fork(caller, log);
         let dropping = self
             .attacks
             .iter()
@@ -238,9 +246,7 @@ impl<L: Log + Default> Log for EvilLog<L> {
     }
 
     fn read(&self, caller: &DeviceKey, log: &LogId, from: Seq) -> Vec<Vec<u8>> {
-        if self.touches_fork(log) {
-            self.affected.borrow_mut().insert(*caller);
-        }
+        self.note_fork(caller, log);
         let mut entries = self.route(caller, log).read(caller, log, from);
         for attack in &self.attacks {
             match attack {
@@ -281,6 +287,10 @@ impl<L: Log + Default> Log for EvilLog<L> {
             }
         }
         entries
+    }
+
+    fn head(&self, caller: &DeviceKey, log: &LogId) -> Seq {
+        self.route(caller, log).head(caller, log)
     }
 
     fn delete(&mut self, log: &LogId) {

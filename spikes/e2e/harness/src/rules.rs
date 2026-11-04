@@ -18,7 +18,8 @@
 //!    unvouched device does.
 //! 3. **An invite code is single use and has no expiry** (D11). The first valid
 //!    `JoinRequest` for an issued code holds the code; a later request is refused
-//!    as used. A request for a revoked or an unknown code is refused.
+//!    as used. A request for a revoked or an unknown code is refused. A device
+//!    has at most one request waiting, so that it cannot burn several codes.
 //! 4. **A member may revoke a code that is not used yet.** Once a request holds
 //!    the code, a `Revoke` is refused; the members simply do not approve.
 //! 5. **Only a request that holds its code can be approved**, once, by a
@@ -111,6 +112,11 @@ pub enum Refusal {
         "the device is already vouched for by a user (see the module docs of e2e_harness::rules)"
     )]
     AlreadyMember,
+    /// The device has a join request that waits.
+    #[error(
+        "the device already has a join request that waits (see rule 3 in the module docs of e2e_harness::rules)"
+    )]
+    AlreadyRequested,
     /// The code was never issued.
     #[error("the code {0} was never issued (see rule 3 in the module docs of e2e_harness::rules)")]
     UnknownCode(InviteCode),
@@ -207,6 +213,9 @@ impl GroupState {
                 if member.is_some() {
                     return Err(Refusal::AlreadyMember);
                 }
+                if self.request_of(author).is_some() {
+                    return Err(Refusal::AlreadyRequested);
+                }
                 match self.codes.get(code) {
                     None => return Err(Refusal::UnknownCode(*code)),
                     Some(CodeState::Used { .. }) => return Err(Refusal::CodeUsed(*code)),
@@ -271,6 +280,9 @@ impl GroupState {
                 if self.roster.contains(device) {
                     return Err(Refusal::AlreadyMember);
                 }
+                // The device is vouched for now: a request of it has no use.
+                self.requests
+                    .retain(|_, request| request.device.key != *device);
                 self.roster.vouch(
                     user,
                     Arc::new(DeviceInfo {
@@ -460,6 +472,50 @@ mod tests {
         assert_eq!(
             f.apply(f.alice, GroupChange::Revoke { code: f.code }),
             Err(Refusal::CodeUsed(f.code))
+        );
+    }
+
+    #[test]
+    fn a_device_with_a_waiting_request_cannot_burn_a_second_code() {
+        let mut f = Fixture::new();
+        let mut rng = SimRng::new(Seed(12));
+        let other = InviteCode::generate(&mut rng);
+        f.apply(f.alice, GroupChange::Invite { code: f.code })
+            .unwrap();
+        f.apply(f.alice, GroupChange::Invite { code: other })
+            .unwrap();
+        f.apply(f.bob, f.ask()).unwrap();
+        let again = GroupChange::JoinRequest {
+            code: other,
+            introduction: Material::empty(),
+        };
+        assert_eq!(f.apply(f.bob, again), Err(Refusal::AlreadyRequested));
+        assert_eq!(
+            f.state.code(&other),
+            Some(CodeState::Issued {
+                by: UserId::admitted_at(Seq(0))
+            })
+        );
+    }
+
+    #[test]
+    fn a_device_that_a_user_vouches_for_loses_its_waiting_request() {
+        let mut f = Fixture::new();
+        f.apply(f.alice, GroupChange::Invite { code: f.code })
+            .unwrap();
+        f.apply(f.bob, f.ask()).unwrap();
+        f.apply(
+            f.alice,
+            GroupChange::AddDevice {
+                device: f.bob,
+                introduction: Material::empty(),
+            },
+        )
+        .unwrap();
+        assert_eq!(f.state.request_of(&f.bob), None);
+        assert_eq!(
+            f.apply(f.alice, GroupChange::Approve { request: Seq(2) }),
+            Err(Refusal::UnknownRequest(Seq(2)))
         );
     }
 

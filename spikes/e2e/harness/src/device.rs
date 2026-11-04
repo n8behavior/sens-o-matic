@@ -33,7 +33,9 @@
 //!   (a message between two phones). A peer whose head is ahead of what the
 //!   server shows is a hold-back, unless the device reaches that position and
 //!   finds the same hash; a peer whose hash at a position the device has (or
-//!   later reaches) is different is a fork.
+//!   later reaches) is different is a fork. The channel is assumed to be
+//!   authentic: a peer that lies about its head can make a device halt a log,
+//!   so a real client would sign the heads it tells.
 //!
 //! What this cannot see is the open risk of #61: a server that keeps two groups
 //! of readers on two histories forever, and a hold-back of a reader who never
@@ -383,12 +385,6 @@ impl Cursor {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Ack {
-    seq: Seq,
-    hash: EventHash,
-}
-
 /// One device of one user, with its cipher.
 #[derive(Debug)]
 pub struct Device<C> {
@@ -404,9 +400,9 @@ pub struct Device<C> {
     intents: VecDeque<Intent>,
     alarms: Vec<(Millis, Alarm)>,
     halted: BTreeSet<LogId>,
-    acks: BTreeMap<LogId, Ack>,
+    acks: BTreeMap<(LogId, Seq), EventHash>,
     at_least: BTreeMap<LogId, Seq>,
-    peer_hashes: BTreeMap<(LogId, Seq), EventHash>,
+    peer_hashes: BTreeMap<(LogId, Seq), BTreeSet<EventHash>>,
     ignored: Vec<(Seq, Ignored)>,
 }
 
@@ -580,15 +576,17 @@ impl<C: GroupCipher> Device<C> {
     /// Compare the heads of a peer with what this device has read.
     pub fn receive_heads(&mut self, now: Millis, heads: &Heads) {
         for (log, (peer_next, peer_head)) in &heads.0 {
+            let Some(last) = peer_next.0.checked_sub(1).map(Seq) else {
+                continue;
+            };
             if self.halted.contains(log) {
                 continue;
             }
-            let mine = self.cursors.get(log).cloned().unwrap_or_else(Cursor::new);
-            if *peer_next <= mine.next {
-                let Some(last) = peer_next.0.checked_sub(1).map(Seq) else {
-                    continue;
-                };
-                if mine.hashes[last.index()] != *peer_head {
+            let cursor = self.cursors.get(log);
+            if last < cursor.map_or(Seq::FIRST, |cursor| cursor.next) {
+                let differs =
+                    cursor.is_some_and(|cursor| cursor.hashes[last.index()] != *peer_head);
+                if differs {
                     self.raise(
                         now,
                         Alarm::Fork {
@@ -601,7 +599,9 @@ impl<C: GroupCipher> Device<C> {
                 let known = self.at_least.entry(*log).or_insert(*peer_next);
                 *known = (*known).max(*peer_next);
                 self.peer_hashes
-                    .insert((*log, Seq(peer_next.0 - 1)), *peer_head);
+                    .entry((*log, last))
+                    .or_default()
+                    .insert(*peer_head);
             }
         }
     }
@@ -653,8 +653,13 @@ impl<C: GroupCipher> Device<C> {
                     known,
                 },
             );
-        } else if let Some(ack) = self.acks.get(&log).copied() {
-            self.raise(now, Alarm::OwnWriteMissing { log, seq: ack.seq });
+        } else if let Some(((_, seq), _)) = self
+            .acks
+            .range((log, Seq::FIRST)..=(log, Seq(u64::MAX)))
+            .next()
+        {
+            let seq = *seq;
+            self.raise(now, Alarm::OwnWriteMissing { log, seq });
         }
         applied
     }
@@ -696,16 +701,13 @@ impl<C: GroupCipher> Device<C> {
             return Err(Alarm::TimeWentBack { log: *log, seq });
         }
         let hash = envelope.hash();
-        if let Some(ack) = self.acks.get(log).copied().filter(|ack| ack.seq == seq) {
-            if ack.hash != hash {
-                return Err(Alarm::OwnWriteAltered { log: *log, seq });
-            }
-            self.acks.remove(log);
+        if let Some(wrote) = self.acks.remove(&(*log, seq))
+            && wrote != hash
+        {
+            return Err(Alarm::OwnWriteAltered { log: *log, seq });
         }
-        if self
-            .peer_hashes
-            .remove(&(*log, seq))
-            .is_some_and(|told| told != hash)
+        if let Some(told) = self.peer_hashes.remove(&(*log, seq))
+            && told.iter().any(|peer| *peer != hash)
         {
             return Err(Alarm::Fork { log: *log, seq });
         }
@@ -809,13 +811,7 @@ impl<C: GroupCipher> Device<C> {
             Ok(receipt) => {
                 let stored = Envelope::stamp(draft, receipt.timestamp)
                     .expect("the draft was made by this device, so it reads back");
-                self.acks.insert(
-                    log,
-                    Ack {
-                        seq: receipt.seq,
-                        hash: stored.hash(),
-                    },
-                );
+                self.acks.insert((log, receipt.seq), stored.hash());
                 Act::Written(receipt)
             }
             Err(SubmitError::Conflict(conflict)) => {
