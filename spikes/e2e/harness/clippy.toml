@@ -1,0 +1,9 @@
+# The library reads neither the system time nor the OS randomness: the clock
+# and the generator are injected (see the module docs of `clock` and `rng`).
+# Clippy refuses each call below, in the library and in the tests.
+disallowed-methods = [
+    { path = "std::time::SystemTime::now", reason = "the simulator injects the time: use `Clock` (see the module docs of `e2e_harness::clock`)" },
+    { path = "std::time::Instant::now", reason = "the simulator injects the time: use `Clock` (see the module docs of `e2e_harness::clock`)" },
+    { path = "rand::rng", reason = "the simulator injects the randomness: use `SimRng` (see the module docs of `e2e_harness::rng`)" },
+    { path = "rand::random", reason = "the simulator injects the randomness: use `SimRng` (see the module docs of `e2e_harness::rng`)" },
+]
